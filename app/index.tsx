@@ -1,9 +1,10 @@
 import 'react-native-url-polyfill/auto'
 import { useState, useEffect } from 'react'
-import { supabase } from './lib/supabase'
-import Auth from './components/Auth'
+import { supabase } from '../lib/supabase'
+import Auth from '../components/Auth'
 import { View, Text, StyleSheet } from 'react-native'
 import { Session } from '@supabase/supabase-js'
+import { HomeScreen } from '../components/screens/home'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -20,16 +21,13 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      <Auth />
-      {session && session.user && <Text>{session.user.id}</Text>}
+      {(session && session.user) ? <HomeScreen/> : <Auth />}
     </View>
   )
 }
 
 const styles = StyleSheet.create({
   container: {
-    flex: 1, // Makes the parent view fill the screen
-    justifyContent: 'center', // Centers vertically
-    alignItems: 'center', // Centers horizontally
+    flex: 1,
   },
 })
