@@ -2,24 +2,25 @@ import React from 'react';
 import { TouchableWithoutFeedback, Animated, StyleSheet, View, Text } from 'react-native';
 
 interface TextSwitchProps {
-  value: boolean;
-  onValueChange: (value: boolean) => void;
+  mode: "text" | "voice";
+  onToggle: () => void;
 }
 
-export const TextSwitch: React.FC<TextSwitchProps> = ({ value, onValueChange }) => {
-  const animatedValue = React.useRef(new Animated.Value(value ? 1 : 0)).current;
+export const TextSwitch: React.FC<TextSwitchProps> = ({ mode, onToggle }) => {
+  const isVoice = mode === 'text'
+  const animatedValue = React.useRef(new Animated.Value(isVoice ? 1 : 0)).current;
 
   React.useEffect(() => {
     Animated.timing(animatedValue, {
-      toValue: value ? 1 : 0,
+      toValue: isVoice ? 1 : 0,
       duration: 200,
       useNativeDriver: false,
     }).start();
-  }, [value]);
+  }, [isVoice]);
 
   const switchTranslate = animatedValue.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 60], // Adjust according to the size
+    outputRange: [0, 70], // Adjust according to the size
   });
 
   const textColorVoice = animatedValue.interpolate({
@@ -38,7 +39,7 @@ export const TextSwitch: React.FC<TextSwitchProps> = ({ value, onValueChange }) 
   });
 
   return (
-    <TouchableWithoutFeedback onPress={() => onValueChange(!value)}>
+    <TouchableWithoutFeedback onPress={() => onToggle()}>
       <Animated.View style={[styles.container, { backgroundColor }]}>
         <Animated.View
           style={[
@@ -59,7 +60,7 @@ export const TextSwitch: React.FC<TextSwitchProps> = ({ value, onValueChange }) 
 
 const styles = StyleSheet.create({
   container: {
-    width: 120, // Adjust width as needed
+    width: 140, // Adjust width as needed
     height: 40, // Adjust height as needed
     borderRadius: 20,
     backgroundColor: '#ccc',
@@ -68,7 +69,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   switchThumb: {
-    width: 60, // Half of container width
+    width: 70, // Half of container width
     height: 40, // Same as container height
     backgroundColor: '#fff',
     borderRadius: 20,

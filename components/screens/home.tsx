@@ -1,38 +1,50 @@
-// HomeScreen.tsx
+// app/(home)/index.tsx
 import React, { useState } from 'react';
-import { Link } from 'expo-router';
+import { View, StyleSheet, Alert, TouchableOpacity, Button } from 'react-native';
+import { useNavigation, useRouter } from 'expo-router';
 import { AnimatedCircle } from '../welcome-circle';
 import { TextSwitch } from '../text-switch';
-import { View, StyleSheet, Alert, TouchableOpacity, Button } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { DrawerNavigationProp } from '@react-navigation/drawer';
 
-export const HomeScreen = () => {
-  const [isVoice, setIsVoice] = useState(true);
+type HomeDrawerParamList = {
+  index: undefined;
+};
 
-  const toggleSwitch = () => setIsVoice((previousState) => !previousState);
+export const HomeScreen: React.FC = () => {
+  const [mode, setMode] = useState<"text" | "voice">('voice')
+  const navigation = useNavigation<DrawerNavigationProp<HomeDrawerParamList>>();
+  const router = useRouter();
+
+  const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text')
 
   const handleNotSurePress = () => {
-    console.log("Button pressed: Not sure what to say?");
-    Alert.alert("Not sure what to say?", "This is just a demo action.");
+    console.log('Button pressed: Not sure what to say?');
+    Alert.alert('Not sure what to say?', 'This is just a demo action.');
   };
 
   return (
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
+        {/* Menu Button */}
+        <TouchableOpacity onPress={() => navigation.openDrawer()}>
+          <Ionicons name="menu" size={24} color="blue" />
+        </TouchableOpacity>
+
         <View style={{ flex: 1 }}>
           {/* Placeholder for alignment */}
         </View>
-        <Link href="/settings" asChild>
-          <TouchableOpacity>
-            <Ionicons name="settings-outline" size={24} color="blue" />
-          </TouchableOpacity>
-        </Link>
+
+        {/* Settings Button */}
+        <TouchableOpacity onPress={() => router.push('/settings')}>
+          <Ionicons name="settings-outline" size={24} color="blue" />
+        </TouchableOpacity>
       </View>
 
       {/* Animated Circle */}
       <View style={styles.circleContainer}>
-        <AnimatedCircle text={"Start talking to get started"} />
+        <AnimatedCircle text="Start talking to get started" />
       </View>
 
       {/* Button */}
@@ -42,7 +54,7 @@ export const HomeScreen = () => {
 
       {/* Custom Text Switch */}
       <View style={styles.switchContainer}>
-        <TextSwitch value={isVoice} onValueChange={setIsVoice} />
+        <TextSwitch mode={mode} onToggle={onToggle} />
       </View>
     </View>
   );
@@ -59,14 +71,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     justifyContent: 'space-between',
   },
-  title: {
-    fontSize: 24,
-    fontWeight: 'bold',
-  },
-  settingsButton: {
-    fontSize: 18,
-    color: 'blue',
-  },
   circleContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -82,9 +86,5 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     paddingBottom: 30,
-  },
-  switchLabel: {
-    marginRight: 10,
-    fontSize: 18,
   },
 });

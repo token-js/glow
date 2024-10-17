@@ -10,6 +10,8 @@ export default function SettingsScreen() {
         options={{
           headerShown: true,
           title: 'Settings',
+          headerBackTitle: 'Back', // Set the back button label
+          // headerBackTitleVisible: false, // Uncomment to hide the back button label
         }}
       />
       <View style={styles.container}>
