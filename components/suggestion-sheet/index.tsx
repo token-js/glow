@@ -1,60 +1,58 @@
-import {
+import BottomSheet, {
   BottomSheetModal,
   BottomSheetView,
   BottomSheetModalProvider,
   useBottomSheetModal,
+  BottomSheetBackdrop,
 } from '@gorhom/bottom-sheet';
-import { BottomSheetModalMethods } from '@gorhom/bottom-sheet/lib/typescript/types';
+import { BottomSheetMethods, BottomSheetModalMethods } from '@gorhom/bottom-sheet/lib/typescript/types';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
 import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
-  bottomSheetModalRef: React.RefObject<BottomSheetModalMethods>
-  handleSheetChanges: (index: number) => void
+  bottomSheetRef: React.RefObject<BottomSheetMethods>
 }
 
-export const SuggestionSheet: React.FC<Props> = ({ handleSheetChanges, bottomSheetModalRef }) => {
+export const SuggestionSheet: React.FC<Props> = ({ bottomSheetRef }) => {
   const snapPoints = useMemo(() => ['50%'], []);
-  const { dismiss } = useBottomSheetModal();
+
+  const renderBackdrop = useCallback(
+		(props: any) => (
+			<BottomSheetBackdrop
+				{...props}
+				disappearsOnIndex={-1}
+				appearsOnIndex={1}
+        pressBehavior={'close'}
+			/>
+		),
+		[]
+	);
 
   return (
-    <BottomSheetModal
-      ref={bottomSheetModalRef}
-      index={1}
+    <BottomSheet
       snapPoints={snapPoints}
-      onChange={handleSheetChanges}
+      ref={bottomSheetRef}
+      enablePanDownToClose={true}
+      index={-1}
+      backdropComponent={renderBackdrop}
     >
       <BottomSheetView style={styles.contentContainer}>
-        <View style={styles.bottomSheetContent}>
-          <TouchableOpacity onPress={() => dismiss()} >
-            <Ionicons name="close" size={24} color="black" />
-          </TouchableOpacity>
-          <Text style={styles.bottomSheetTitle}>TODO - fill in some stuff. We can probably base this off what Pi has for it's suggestions on the website.</Text>
-        </View>
+        <Text>Fill in some suggestions here.</Text>
       </BottomSheetView>
-    </BottomSheetModal>
+    </BottomSheet>
   )
 }
 
 const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 24,
+    backgroundColor: 'grey',
+  },
   contentContainer: {
     flex: 1,
     alignItems: 'center',
-  },
-  bottomSheetContent: {
-    backgroundColor: 'white',
-    padding: 16,
-    position: 'relative',
-  },
-  bottomSheetTitle: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    marginBottom: 10,
-  },
-  bottomSheetText: {
-    fontSize: 16,
-    marginBottom: 5,
   },
 });

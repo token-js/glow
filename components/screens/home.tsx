@@ -6,7 +6,7 @@ import { TextSwitch } from '../text-switch';
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
 import React, { useCallback, useMemo, useRef, useState } from 'react';
-import {
+import BottomSheet, {
   BottomSheetModal,
   BottomSheetView,
   BottomSheetModalProvider,
@@ -24,13 +24,12 @@ export const HomeScreen: React.FC = () => {
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text')
 
   const handlePresentModalPress = useCallback(() => {
-    bottomSheetModalRef.current?.present();
+    // bottomSheetModalRef.current?.present();
+    bottomSheetRef.current?.expand()
   }, []);
 
-  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
-  const handleSheetChanges = useCallback((index: number) => {
-    console.log('handleSheetChanges', index);
-  }, []);
+  // ref
+  const bottomSheetRef = useRef<BottomSheet>(null);
 
   return (
     <View style={styles.container}>
@@ -69,12 +68,10 @@ export const HomeScreen: React.FC = () => {
         <TextSwitch mode={mode} onToggle={onToggle} />
       </View>
 
-      <BottomSheetModalProvider>
-        <SuggestionSheet
-          handleSheetChanges={handleSheetChanges}
-          bottomSheetModalRef={bottomSheetModalRef}
-        />
-      </BottomSheetModalProvider>
+
+      <SuggestionSheet
+        bottomSheetRef={bottomSheetRef}
+      />
     </View>
   );
 };
