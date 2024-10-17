@@ -1,11 +1,17 @@
 // app/(home)/index.tsx
-import React, { useState } from 'react';
-import { View, StyleSheet, Alert, TouchableOpacity, Button } from 'react-native';
+import { View, StyleSheet, Text, Alert, TouchableOpacity, Button } from 'react-native';
 import { useNavigation, useRouter } from 'expo-router';
 import { AnimatedCircle } from '../welcome-circle';
 import { TextSwitch } from '../text-switch';
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
+import React, { useCallback, useMemo, useRef, useState } from 'react';
+import {
+  BottomSheetModal,
+  BottomSheetView,
+  BottomSheetModalProvider,
+} from '@gorhom/bottom-sheet';
+import { SuggestionSheet } from '../suggestion-sheet';
 
 type HomeDrawerParamList = {
   index: undefined;
@@ -15,13 +21,16 @@ export const HomeScreen: React.FC = () => {
   const [mode, setMode] = useState<"text" | "voice">('voice')
   const navigation = useNavigation<DrawerNavigationProp<HomeDrawerParamList>>();
   const router = useRouter();
-
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text')
 
-  const handleNotSurePress = () => {
-    console.log('Button pressed: Not sure what to say?');
-    Alert.alert('Not sure what to say?', 'This is just a demo action.');
-  };
+  const handlePresentModalPress = useCallback(() => {
+    bottomSheetModalRef.current?.present();
+  }, []);
+
+  const bottomSheetModalRef = useRef<BottomSheetModal>(null);
+  const handleSheetChanges = useCallback((index: number) => {
+    console.log('handleSheetChanges', index);
+  }, []);
 
   return (
     <View style={styles.container}>
@@ -49,13 +58,23 @@ export const HomeScreen: React.FC = () => {
 
       {/* Button */}
       <View style={styles.buttonContainer}>
-        <Button title="Not sure what to say?" onPress={handleNotSurePress} />
+        <Button 
+          title="Not sure what to say?"
+          onPress={handlePresentModalPress}
+        />
       </View>
 
       {/* Custom Text Switch */}
       <View style={styles.switchContainer}>
         <TextSwitch mode={mode} onToggle={onToggle} />
       </View>
+
+      <BottomSheetModalProvider>
+        <SuggestionSheet
+          handleSheetChanges={handleSheetChanges}
+          bottomSheetModalRef={bottomSheetModalRef}
+        />
+      </BottomSheetModalProvider>
     </View>
   );
 };
@@ -63,7 +82,11 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    paddingTop: 50, // Adjust if necessary for status bar
+    paddingTop: 50,
+  },
+  contentContainer: {
+    flex: 1,
+    alignItems: 'center',
   },
   header: {
     flexDirection: 'row',
