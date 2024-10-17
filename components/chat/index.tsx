@@ -1,5 +1,5 @@
 // components/chat-screen.tsx
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
 import {
   View,
   StyleSheet,
@@ -12,18 +12,19 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { TypingIndicator } from '../typing-indicator';
 
 type Message = {
   id: string;
   text: string;
-  sender: 'user' | 'bot';
+  sender?: 'user' | 'bot';
+  type: 'normal' | 'typing';
 };
 
 export const ChatScreen: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
-  const inputRef = useRef<TextInput>(null);
 
   const sendMessage = () => {
     if (inputText.trim() === '') {
@@ -34,47 +35,61 @@ export const ChatScreen: React.FC = () => {
       id: Date.now().toString(),
       text: inputText,
       sender: 'user',
+      type: 'normal',
     };
 
     setMessages((prevMessages) => [...prevMessages, userMessage]);
 
-    // Simulate bot response
-    const botMessage: Message = {
+    // Add typing indicator
+    const typingMessage: Message = {
       id: (Date.now() + 1).toString(),
-      text: 'This is a hardcoded response from the bot.',
-      sender: 'bot',
+      text: '',
+      type: 'typing',
     };
 
+    setMessages((prevMessages) => [...prevMessages, typingMessage]);
+
+    // Simulate bot response
     setTimeout(() => {
-      setMessages((prevMessages) => [...prevMessages, botMessage]);
-    }, 1000); // Simulate delay
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.type === 'typing' ? { ...msg, text: 'This is a hardcoded response from the bot.', sender: 'bot', type: 'normal' } : msg
+        )
+      );
+    }, 1500); // Simulate delay
+    // Adjusted delay to 1500ms for better user experience
 
     setInputText('');
     Keyboard.dismiss();
   };
 
-  const renderItem = ({ item }: { item: Message }) => (
-    <View
-      style={[
-        styles.messageContainer,
-        item.sender === 'user' ? styles.userMessage : styles.botMessage,
-      ]}
-    >
-      <Text style={styles.messageText}>{item.text}</Text>
-    </View>
-  );
+  const renderItem = ({ item }: { item: Message }) => {
+    if (item.type === 'typing') {
+      return (
+        <View style={styles.typingContainer}>
+          <TypingIndicator />
+        </View>
+      );
+    }
+
+    return (
+      <View
+        style={[
+          styles.messageContainer,
+          item.sender === 'user' ? styles.userMessage : styles.botMessage,
+        ]}
+      >
+        <Text style={styles.messageText}>{item.text}</Text>
+      </View>
+    );
+  };
 
   // Scroll to bottom when messages change
-  useEffect(() => {
+  useLayoutEffect(() => {
     if (flatListRef.current && messages.length > 0) {
       flatListRef.current.scrollToEnd({ animated: true });
     }
   }, [messages]);
-
-  // Auto-focus input when component mounts
-  useEffect(() => {
-    inputRef.current?.focus();
-  }, []);
 
   return (
     <KeyboardAvoidingView
@@ -93,7 +108,6 @@ export const ChatScreen: React.FC = () => {
       />
       <View style={styles.inputContainer}>
         <TextInput
-          ref={inputRef}
           style={styles.textInput}
           placeholder="Type your message..."
           value={inputText}
@@ -115,7 +129,6 @@ const styles = StyleSheet.create({
   messagesList: {
     paddingHorizontal: 10,
     paddingVertical: 10,
-    flexGrow: 1,
   },
   messageContainer: {
     marginVertical: 5,
@@ -133,6 +146,10 @@ const styles = StyleSheet.create({
   },
   messageText: {
     fontSize: 16,
+  },
+  typingContainer: {
+    marginVertical: 5,
+    alignSelf: 'flex-start',
   },
   inputContainer: {
     flexDirection: 'row',
