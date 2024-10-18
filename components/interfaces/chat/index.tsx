@@ -12,7 +12,7 @@ import {
   Keyboard,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { TypingIndicator } from '../typing-indicator';
+import { TypingIndicator } from '../../typing-indicator';
 
 type Message = {
   id: string;
@@ -21,7 +21,7 @@ type Message = {
   type: 'normal' | 'typing';
 };
 
-export const ChatScreen: React.FC = () => {
+export const ChatInterface: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState('');
   const flatListRef = useRef<FlatList>(null);
@@ -125,6 +125,12 @@ export const ChatScreen: React.FC = () => {
 const styles = StyleSheet.create({
   chatContainer: {
     flex: 1,
+  },
+  circleContainer: {
+    marginTop: 50,
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   messagesList: {
     paddingHorizontal: 10,

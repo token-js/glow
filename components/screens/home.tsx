@@ -6,9 +6,10 @@ import { AnimatedCircle } from '../welcome-circle';
 import { TextSwitch } from '../text-switch';
 import { Ionicons } from '@expo/vector-icons';
 import { DrawerNavigationProp } from '@react-navigation/drawer';
-import { ChatScreen } from '../chat';
+import { ChatInterface } from '../interfaces/chat';
 import { SuggestionSheet } from '../suggestion-sheet';
 import BottomSheet from '@gorhom/bottom-sheet';
+import { VoiceInterface } from '../interfaces/voice';
 
 type HomeDrawerParamList = {
   index: undefined;
@@ -20,11 +21,7 @@ export const HomeScreen: React.FC = () => {
   const router = useRouter();
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
 
-  const handlePresentModalPress = useCallback(() => {
-    bottomSheetRef.current?.expand();
-  }, []);
-
-  const bottomSheetRef = useRef<BottomSheet>(null);
+  const getStartedPrompt = mode === 'voice' ? 'Start talking to get started' : 'Send a message to get started'
 
   return (
     <View style={styles.container}>
@@ -47,26 +44,13 @@ export const HomeScreen: React.FC = () => {
 
       {/* Main Content */}
       <View style={styles.mainContent}>
+        <View style={styles.circleContainer}>
+          <AnimatedCircle text={getStartedPrompt} />
+        </View>
         {mode === 'voice' ? (
-          <>
-            {/* Center the AnimatedCircle */}
-            <View style={styles.circleContainer}>
-              <AnimatedCircle text="Start talking to get started" />
-            </View>
-
-            {/* Button */}
-            <View style={styles.buttonContainer}>
-              <Button
-                title="Not sure what to say?"
-                onPress={handlePresentModalPress}
-              />
-            </View>
-
-            {/* Suggestion Sheet */}
-            <SuggestionSheet bottomSheetRef={bottomSheetRef} />
-          </>
+          <VoiceInterface />
         ) : (
-          <ChatScreen />
+          <ChatInterface />
         )}
       </View>
 
@@ -85,6 +69,18 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
+    position: 'relative', // Enable absolute positioning within
+  },
+  circleContainer: {
+    position: 'absolute', // Absolutely positioned within mainContent
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    justifyContent: 'center',
+    alignItems: 'center',
+    zIndex: 0, // Ensure it's beneath other content
+    pointerEvents: 'none', // Allow touches to pass through
   },
   header: {
     flexDirection: 'row',
@@ -92,11 +88,6 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingBottom: 10,
     justifyContent: 'space-between',
-  },
-  circleContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   buttonContainer: {
     marginVertical: 20,
