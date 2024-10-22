@@ -1,4 +1,4 @@
-package com.glow.app
+package com.glowhealth.app
 
 import android.os.Build
 import android.os.Bundle

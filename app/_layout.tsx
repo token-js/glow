@@ -1,6 +1,9 @@
 // app/_layout.tsx
 import React from 'react';
 import { Stack } from 'expo-router';
+import { registerGlobals } from '@livekit/react-native';
+
+registerGlobals()
 
 const RootLayout: React.FC = () => {
   return (
