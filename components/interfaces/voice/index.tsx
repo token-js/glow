@@ -4,6 +4,8 @@ import {
   View,
   FlatList,
   ListRenderItem,
+  Text,
+  ActivityIndicator,
 } from 'react-native';
 import { useEffect } from 'react';
 import {
@@ -15,17 +17,34 @@ import {
   isTrackReference,
   registerGlobals,
 } from '@livekit/react-native';
-import { Track } from 'livekit-client';
+import { Room, Track } from 'livekit-client';
+import useAxios from 'axios-hooks'
+import useFetch from './fetch';
 
 registerGlobals();
 
-const wsURL = process.env.LIVEKIT_URL
-const token = process.env.LIVEKIT_TOKEN
+export const VoiceInterface = ({ supabaseToken }: { supabaseToken: string }) => {
+  console.log(supabaseToken)
+  const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
+  const [{ data: token, loading, error }, refetch] = useAxios(
+    { 
+      url: `${process.env.EXPO_PUBLIC_AUTH_SERVER_URL}/api/generateToken`,
+      method: 'GET',
+      headers: {
+        Authorization: `Bearer ${supabaseToken}`,
+      }
+    },
+  )
 
-export const VoiceInterface = () => {
-  // Start the audio session first.
+  console.log(token)
+
   useEffect(() => {
+    if (loading) {
+      return
+    }
+
     let start = async () => {
+      console.log('starting')
       await AudioSession.startAudioSession();
     };
 
@@ -33,45 +52,19 @@ export const VoiceInterface = () => {
     return () => {
       AudioSession.stopAudioSession();
     };
-  }, []);
+  }, [loading]);
+
+  if (loading || token === null) {
+    return <></>
+  }
 
   return (
     <LiveKitRoom
       serverUrl={wsURL}
       token={token}
-      connect={true}
-      options={{
-        // Use screen pixel density to handle screens with differing densities.
-        adaptiveStream: { pixelDensity: 'screen' },
-      }}
+      connect={token !== null ? true : false}
       audio={true}
-      video={false}
-    >
-      <RoomView />
-    </LiveKitRoom>
-  );
-};
-
-const RoomView = () => {
-  // Get all camera tracks.
-  const tracks = useTracks([Track.Source.Camera]);
-
-  const renderTrack: ListRenderItem<TrackReferenceOrPlaceholder> = ({item}) => {
-    // Render using the VideoTrack component.
-    if(isTrackReference(item)) {
-      return (<VideoTrack trackRef={item} style={styles.participantView} />)
-    } else {
-      return (<View style={styles.participantView} />)
-    }
-  };
-
-  return (
-    <View style={styles.container}>
-      <FlatList
-        data={tracks}
-        renderItem={renderTrack}
-      />
-    </View>
+    />
   );
 };
 
@@ -84,4 +77,7 @@ const styles = StyleSheet.create({
   participantView: {
     height: 300,
   },
+  title: { fontWeight: 'bold', fontSize: 18, marginBottom: 8 },
+  data: { fontSize: 14 },
+  errorText: { color: 'red', fontSize: 16 },
 });

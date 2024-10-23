@@ -9,7 +9,6 @@ import { BottomSheetMethods, BottomSheetModalMethods } from '@gorhom/bottom-shee
 import React, { useCallback, useMemo, useRef, useState } from 'react';
 import { Button, StyleSheet, Text, View } from 'react-native';
 import { TouchableOpacity } from 'react-native-gesture-handler';
-import { Ionicons } from '@expo/vector-icons';
 
 type Props = {
   bottomSheetRef: React.RefObject<BottomSheetMethods>

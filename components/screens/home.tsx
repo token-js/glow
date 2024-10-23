@@ -10,6 +10,8 @@ import { ChatInterface } from '../interfaces/chat';
 import { SuggestionSheet } from '../suggestion-sheet';
 import BottomSheet from '@gorhom/bottom-sheet';
 import { VoiceInterface } from '../interfaces/voice';
+import { supabase } from '../../lib/supabase';
+import { useSupabaseSession } from '../../lib/hook';
 
 type HomeDrawerParamList = {
   index: undefined;
@@ -22,6 +24,7 @@ export const HomeScreen: React.FC = () => {
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
 
   const getStartedPrompt = mode === 'voice' ? 'Start talking to get started' : 'Send a message to get started'
+  const session = useSupabaseSession()
 
   return (
     <View style={styles.container}>
@@ -48,7 +51,7 @@ export const HomeScreen: React.FC = () => {
           <AnimatedCircle text={getStartedPrompt} />
         </View>
         {mode === 'voice' ? (
-          <VoiceInterface />
+          session.session?.access_token && <VoiceInterface supabaseToken={session.session.access_token} />
         ) : (
           <ChatInterface />
         )}

@@ -36,5 +36,7 @@ yarn-error.*
 *.tsbuildinfo
 
 .env.local
-venv/
+.venv/
 .DS_Store
+
+__pycache__
