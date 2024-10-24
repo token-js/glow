@@ -23,24 +23,25 @@ model UserProfiles {
   website   String?
   createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
   updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
-  settings  Settings @relation(fields: [id], references: [userId])
+  settings  Settings @relation(fields: [id], references: [id])
 
   @@map("user_profiles")
 }
 
 model Settings {
-  id     String @id
-  userId String @unique @db.Uuid @map("user_id")
-  name   String
-  gender Gender
-  voice  Voice
+  id String @unique @db.Uuid
+  name   String?
+  gender Gender?
+  voice  Voice?
   user   UserProfiles?
 
   @@map("settings")
 }
 
 enum Voice {
-  temporary
+  voice_1
+  voice_2
+  voice_3
 }
 
 enum Gender {

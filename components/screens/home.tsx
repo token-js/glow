@@ -19,7 +19,6 @@ type HomeDrawerParamList = {
 
 export const HomeScreen: React.FC = () => {
   const [mode, setMode] = useState<'text' | 'voice'>('voice');
-  const navigation = useNavigation<DrawerNavigationProp<HomeDrawerParamList>>();
   const router = useRouter();
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
 
@@ -30,11 +29,6 @@ export const HomeScreen: React.FC = () => {
     <View style={styles.container}>
       {/* Header */}
       <View style={styles.header}>
-        {/* Menu Button */}
-        <TouchableOpacity onPress={() => navigation.openDrawer()}>
-          <Ionicons name="menu" size={24} color="blue" />
-        </TouchableOpacity>
-
         <View style={{ flex: 1 }}>
           {/* Placeholder for alignment */}
         </View>

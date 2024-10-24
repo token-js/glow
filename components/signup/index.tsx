@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, ReactElement } from 'react';
 import {
   View,
   Text,
@@ -8,10 +8,10 @@ import {
   Animated,
   Easing,
 } from 'react-native';
+import { supabase } from '../../lib/supabase';
+import { Session } from '@supabase/supabase-js';
+import { Settings } from '@prisma/client';
 
-/**
- * Defines the properties required for each step in the SignupFlow.
- */
 export interface StepProps {
   onNext: () => void;
   name: string;
@@ -20,33 +20,21 @@ export interface StepProps {
   setGender: (gender: string) => void;
   voice: string;
   setVoice: (voice: string) => void;
-  color: string;
-  setColor: (color: string) => void;
-  hobby: string;
-  setHobby: (hobby: string) => void;
-  // Add additional state setters and state variables as needed
 }
 
-/**
- * Represents a single step in the SignupFlow.
- */
 export interface Step {
   key: string;
-  render: (props: StepRenderProps) => React.ReactNode;
+  component: ReactElement;
 }
 
-/**
- * Props passed to each step's render function.
- * All properties are required to ensure type safety.
- */
 export type StepRenderProps = StepProps;
 
-/**
- * SignupFlow Component
- * Handles a multi-step user signup process with smooth sequential animations.
- */
-export const SignupFlow: React.FC = () => {
-  // Step Management
+type Props = {
+  session: Session
+  settings: Settings
+}
+
+export const SignupFlow: React.FC<Props> = ({ session }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [topSection, setTopSection] = useState<'A' | 'B'>('A')
@@ -59,22 +47,15 @@ export const SignupFlow: React.FC = () => {
     }
   }
 
-  // Form Data
   const [name, setName] = useState<string>('');
   const [gender, setGender] = useState<string>('');
   const [voice, setVoice] = useState<string>('');
-  const [color, setColor] = useState<string>('');
-  const [hobby, setHobby] = useState<string>(''); // Example of an additional step
 
-  // Animation Values
   const outgoingAnim = useRef<Animated.Value>(new Animated.Value(1)).current;
   const incomingAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
 
-  /**
-   * Handler to move to the next step with sequential animation.
-   */
   const onNext = (): void => {
-    if (isTransitioning) return; // Prevent multiple triggers
+    if (isTransitioning) return;
     setIsTransitioning(true);
 
     Animated.parallel([
@@ -91,35 +72,35 @@ export const SignupFlow: React.FC = () => {
         easing: Easing.out(Easing.ease),
       })
     ]).start(() => {
-      // Update to next step
       setCurrentStepIndex((prevIndex) => prevIndex + 1);
-      // Reset outgoing animation
       outgoingAnim.setValue(1);
-      // Reset incoming animation
       incomingAnim.setValue(0);
       setIsTransitioning(false);
-
       flipTopSection()
     });
   }
 
-  /**
-   * Handler for final submission.
-   */
-  const onFinish = (): void => {
-    console.log(
-      `Name: ${name}, Gender: ${gender}, Voice: ${voice}, Color: ${color}, Hobby: ${hobby}`
-    );
-    // Implement further logic like API calls or navigation
+  const onFinish = async (): Promise<void> => {
+    console.log(name)
+    console.log(gender)
+    console.log(voice)
+    console.log(session.user.id)
+    const { data, error } = await supabase
+      .from('settings')
+      .update({ name: name, gender: gender.toLowerCase(), voice: voice.replace(' ', '_').toLowerCase() })
+      .eq('id', session.user.id)
+      .select()
+
+    console.log(data)
+
+    // console.log(error)
+    // console.log(data)
   };
 
-  /**
-   * Define the steps of the SignupFlow.
-   */
   const steps: Step[] = [
     {
       key: 'name',
-      render: ({ onNext, setName, name }: StepRenderProps) => (
+      component: (
         <View style={styles.content}>
           <Text style={styles.title}>What's your name?</Text>
           <TextInput
@@ -145,7 +126,7 @@ export const SignupFlow: React.FC = () => {
     },
     {
       key: 'gender',
-      render: ({ onNext, name, setGender }: StepRenderProps) => (
+      component: (
         <>
           <Text style={styles.title}>Hi {name}, what's your gender?</Text>
           <TouchableOpacity
@@ -186,14 +167,14 @@ export const SignupFlow: React.FC = () => {
     },
     {
       key: 'voice',
-      render: ({ onNext, setVoice }: StepRenderProps) => (
+      component: (
         <>
-          <Text style={styles.title}>Choose a voice for your AI chatbot</Text>
+          <Text style={styles.title}>Select a voice</Text>
           <TouchableOpacity
             style={styles.button}
             onPress={() => {
               setVoice('Voice 1');
-              onNext();
+              onFinish();
             }}
             accessible={true}
             accessibilityLabel="Select Voice 1"
@@ -204,7 +185,6 @@ export const SignupFlow: React.FC = () => {
             style={styles.button}
             onPress={() => {
               setVoice('Voice 2');
-              onNext();
             }}
             accessible={true}
             accessibilityLabel="Select Voice 2"
@@ -215,41 +195,41 @@ export const SignupFlow: React.FC = () => {
             style={styles.button}
             onPress={() => {
               setVoice('Voice 3');
-              onNext();
             }}
             accessible={true}
             accessibilityLabel="Select Voice 3"
           >
             <Text style={styles.buttonText}>Voice 3</Text>
           </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => {
+              onFinish();
+            }}
+            accessible={true}
+            accessibilityLabel="Confirm"
+          >
+            <Text style={styles.buttonText}>Confirm</Text>
+          </TouchableOpacity>
         </>
       ),
     },
-    // Add more steps as needed
   ];
-
-  /**
-   * Determine the next handler based on the current step.
-   */
-  const handleNext: () => void =
-    currentStepIndex === steps.length - 1 ? onFinish : onNext;
 
   const [parentHeight, setParentHeight] = useState(0);
 
-  // Handler to capture parent container's layout
   const onParentLayout = (event: any) => {
     const { height } = event.nativeEvent.layout;
     setParentHeight(height);
   };
 
-  // Interpolate the animated value to translateY
   const incomingY = incomingAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [parentHeight, 0],
     extrapolate: 'clamp',
   });
 
-  // Interpolate the animated value to translateY
   const outgoingY = outgoingAnim.interpolate({
     inputRange: [0, 1],
     outputRange: [-parentHeight, 0],
@@ -277,19 +257,7 @@ export const SignupFlow: React.FC = () => {
             },
           ]}
         >
-          {steps[stepDataIndex].render({
-            onNext: handleNext,
-            setName,
-            setGender,
-            setVoice,
-            setColor,
-            setHobby,
-            name,
-            gender,
-            voice,
-            color,
-            hobby,
-          })}
+          {steps[stepDataIndex].component}
         </Animated.View>
       )
     } else {
@@ -318,19 +286,7 @@ export const SignupFlow: React.FC = () => {
             },
           ]}
         >
-          {steps[stepDataIndex].render({
-            onNext: handleNext,
-            setName,
-            setGender,
-            setVoice,
-            setColor,
-            setHobby,
-            name,
-            gender,
-            voice,
-            color,
-            hobby,
-          })}
+          {steps[stepDataIndex].component}
         </Animated.View>
       )
     } else {
@@ -353,23 +309,19 @@ export const SignupFlow: React.FC = () => {
   );
 };
 
-/**
- * Styles for the SignupFlow component.
- */
 const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#fff',
     justifyContent: 'center',
-    position: 'relative', // Ensure absolute positioned incoming step aligns correctly
+    position: 'relative',
   },
   content: {
-    // Ensures consistent spacing and positioning
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
     alignContent: 'center',
-    position: 'absolute', // Absolute positioning to overlay steps
+    position: 'absolute',
     top: 0,
     left: 0,
     right: 0,

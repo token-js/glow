@@ -32,13 +32,9 @@ CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
 BEGIN
     -- Insert into settings first to satisfy the foreign key constraint
-    INSERT INTO public.settings (id, user_id, name, gender, voice)
+    INSERT INTO public.settings (id)
     VALUES (
-        NEW.id,
-        NEW.id,
-        'Default Name',     -- Modify as needed
-        'nonbinary',        -- Modify as needed
-        'temporary'
+        NEW.id
     );
 
     -- Insert into user_profiles
@@ -71,14 +67,6 @@ CREATE TRIGGER on_auth_user_created
 CREATE OR REPLACE FUNCTION public.handle_update_user() 
 RETURNS trigger AS $$
 BEGIN
-    -- Update settings table
-    UPDATE public.settings
-    SET
-        name = NEW.raw_user_meta_data->>'full_name', -- Example update
-        gender = 'nonbinary',                        -- Modify as needed
-        voice = 'temporary'                           -- Modify as needed
-    WHERE user_id = NEW.id;
-
     -- Update user_profiles table
     UPDATE public.user_profiles
     SET

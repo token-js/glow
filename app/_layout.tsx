@@ -10,7 +10,7 @@ const RootLayout: React.FC = () => {
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(home)" options={{ headerShown: false }} />
       <Stack.Screen name="settings" options={{ title: 'Settings' }} />
-    </Stack>
+    </Stack>      
   );
 };
 
