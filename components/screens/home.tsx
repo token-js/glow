@@ -51,7 +51,7 @@ export const HomeScreen: React.FC = () => {
           <AnimatedCircle text={getStartedPrompt} />
         </View>
         {mode === 'voice' ? (
-          session.session?.access_token && <VoiceInterface supabaseToken={session.session.access_token} />
+          session.session && <VoiceInterface session={session.session} />
         ) : (
           <ChatInterface />
         )}

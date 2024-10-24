@@ -1,0 +1,50 @@
+datasource db {
+  provider          = "postgresql"
+  url               = env("DATABASE_URL")
+  directUrl         = env("DIRECT_DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+generator python {
+  provider             = "prisma-client-py"
+  recursive_type_depth = 5
+}
+
+model UserProfiles {
+  id        String   @id @db.Uuid
+  username  String?  @unique
+  fullName  String?  @map("full_name")
+  email     String?
+  phone     String?
+  avatarUrl String?  @map("avatar_url")
+  website   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(6)
+  updatedAt DateTime @updatedAt @map("updated_at") @db.Timestamptz(6)
+  settings  Settings @relation(fields: [id], references: [userId])
+
+  @@map("user_profiles")
+}
+
+model Settings {
+  id     String @id
+  userId String @unique @db.Uuid @map("user_id")
+  name   String
+  gender Gender
+  voice  Voice
+  user   UserProfiles?
+
+  @@map("settings")
+}
+
+enum Voice {
+  temporary
+}
+
+enum Gender {
+  male
+  female
+  nonbinary
+}

@@ -11,15 +11,20 @@ router = APIRouter()
 def authorize_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())):
     secret_key = os.environ.get("SUPABASE_JWT_SECRET")
     algo = "HS256"
+
+    print(credentials.credentials)
+    print(secret_key)
+
     try:
-        payload = jwt.decode(
-            credentials.credentials,
-            secret_key,
-            algorithms=[algo],
-            audience="authenticated",
-        )
-        return payload
+      payload = jwt.decode(
+          credentials.credentials,
+          secret_key,
+          algorithms=[algo],
+          audience="authenticated",
+      )
+      return payload
     except:
+        print('forbidden')
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid token",
@@ -27,12 +32,13 @@ def authorize_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBeare
 
 @router.get("/api/generateToken")
 async def fetchToken(user=Depends(authorize_user)):
+  user_id = user["sub"]
   token = api.AccessToken(os.getenv('LIVEKIT_API_KEY'), os.getenv('LIVEKIT_API_SECRET')) \
-    .with_identity("identity") \
-    .with_name("my name") \
+    .with_identity(user_id) \
+    .with_name(user_id) \
     .with_grants(api.VideoGrants(
         room_join=True,
-        room="my-room",
+        room=user_id,
     ))
   return token.to_jwt()
 

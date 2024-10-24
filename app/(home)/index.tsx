@@ -5,6 +5,7 @@ import { Session } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import Auth from '../../components/Auth'
 import { HomeScreen } from '../../components/screens/home'
+import { SignupFlow } from '../../components/signup'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -21,7 +22,8 @@ export default function App() {
 
   return (
     <View style={styles.container}>
-      {(session && session.user) ? <HomeScreen /> : <Auth />}
+      <SignupFlow />
+      {/* {(session && session.user) ? <HomeScreen /> : <Auth />} */}
     </View>
   )
 }

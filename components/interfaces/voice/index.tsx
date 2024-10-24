@@ -20,23 +20,32 @@ import {
 import { Room, Track } from 'livekit-client';
 import useAxios from 'axios-hooks'
 import useFetch from './fetch';
+import { Session } from '@supabase/supabase-js';
+import { supabase } from '../../../lib/supabase';
 
 registerGlobals();
 
-export const VoiceInterface = ({ supabaseToken }: { supabaseToken: string }) => {
-  console.log(supabaseToken)
+export const VoiceInterface = ({ session }: { session: Session }) => {
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
-  const [{ data: token, loading, error }, refetch] = useAxios(
+  const [{ data: token, loading, error }] = useAxios(
     { 
       url: `${process.env.EXPO_PUBLIC_AUTH_SERVER_URL}/api/generateToken`,
       method: 'GET',
       headers: {
-        Authorization: `Bearer ${supabaseToken}`,
+        Authorization: `Bearer ${session.access_token}`,
       }
     },
   )
 
-  console.log(token)
+  useEffect(() => {
+    getCountries();
+  }, []);
+
+  async function getCountries() {
+    const { data } = await supabase.from("user_profiles").select('*').eq('id', session.user.id)
+    console.log('data')
+    console.log(data)
+  }
 
   useEffect(() => {
     if (loading) {
@@ -44,7 +53,6 @@ export const VoiceInterface = ({ supabaseToken }: { supabaseToken: string }) => 
     }
 
     let start = async () => {
-      console.log('starting')
       await AudioSession.startAudioSession();
     };
 
@@ -67,17 +75,3 @@ export const VoiceInterface = ({ supabaseToken }: { supabaseToken: string }) => 
     />
   );
 };
-
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    alignItems: 'stretch',
-    justifyContent: 'center',
-  },
-  participantView: {
-    height: 300,
-  },
-  title: { fontWeight: 'bold', fontSize: 18, marginBottom: 8 },
-  data: { fontSize: 14 },
-  errorText: { color: 'red', fontSize: 16 },
-});

@@ -42,7 +42,7 @@ async def entrypoint(ctx: JobContext):
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
-        llm=InflectionLLM(model="inflection_3_pi"),
+        llm=InflectionLLM(model="inflection_3_pi", user=participant.identity),
         tts=openai.TTS(),
         chat_ctx=initial_ctx,
     )
