@@ -1,17 +1,13 @@
-// app/(home)/index.tsx
-import React, { useCallback, useRef, useState } from 'react';
-import { View, StyleSheet, TouchableOpacity, Button } from 'react-native';
-import { useNavigation, useRouter } from 'expo-router';
+import React, { useState } from 'react';
+import { View, StyleSheet, TouchableOpacity } from 'react-native';
+import { useRouter } from 'expo-router';
 import { AnimatedCircle } from '../welcome-circle';
-import { TextSwitch } from '../text-switch';
 import { Ionicons } from '@expo/vector-icons';
-import { DrawerNavigationProp } from '@react-navigation/drawer';
 import { ChatInterface } from '../interfaces/chat';
-import { SuggestionSheet } from '../suggestion-sheet';
-import BottomSheet from '@gorhom/bottom-sheet';
 import { VoiceInterface } from '../interfaces/voice';
-import { supabase } from '../../lib/supabase';
 import { useSupabaseSession } from '../../lib/hook';
+import { VoiceTextToggleButton } from '../interfaces/voice/toggle'
+import { ChatInput } from './input'
 
 type HomeDrawerParamList = {
   index: undefined;
@@ -53,7 +49,14 @@ export const HomeScreen: React.FC = () => {
 
       {/* Custom Text Switch */}
       <View style={styles.switchContainer}>
-        <TextSwitch mode={mode} onToggle={onToggle} />
+        <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
+        <View style={{
+          flex: 9
+        }}>
+          {mode === 'voice' ? <View /> : <View style={styles.inputContainer}>
+            <ChatInput onSend={() => {}} />
+          </View>}
+        </View>
       </View>
     </View>
   );
@@ -93,9 +96,16 @@ const styles = StyleSheet.create({
     alignSelf: 'center',
   },
   switchContainer: {
+    width: '100%',
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
+    justifyContent: 'flex-end',
     paddingBottom: 30,
+    paddingHorizontal: 10,
+  },
+  inputContainer: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
   },
 });
 

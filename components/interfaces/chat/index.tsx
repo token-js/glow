@@ -106,18 +106,6 @@ export const ChatInterface: React.FC = () => {
         onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
         keyboardShouldPersistTaps="handled"
       />
-      <View style={styles.inputContainer}>
-        <TextInput
-          style={styles.textInput}
-          placeholder="Type your message..."
-          value={inputText}
-          onChangeText={setInputText}
-          multiline
-        />
-        <TouchableOpacity onPress={sendMessage} style={styles.sendButton}>
-          <Ionicons name="send" size={20} color="#FFFFFF" />
-        </TouchableOpacity>
-      </View>
     </KeyboardAvoidingView>
   );
 };
@@ -156,30 +144,5 @@ const styles = StyleSheet.create({
   typingContainer: {
     marginVertical: 5,
     alignSelf: 'flex-start',
-  },
-  inputContainer: {
-    flexDirection: 'row',
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderTopWidth: 1,
-    borderColor: '#CCC',
-    alignItems: 'flex-end',
-  },
-  textInput: {
-    flex: 1,
-    maxHeight: 100,
-    paddingHorizontal: 15,
-    paddingVertical: 10,
-    backgroundColor: '#F5F5F5',
-    borderRadius: 20,
-    marginRight: 10,
-    fontSize: 16,
-  },
-  sendButton: {
-    backgroundColor: '#007AFF',
-    borderRadius: 20,
-    padding: 12,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
 });
