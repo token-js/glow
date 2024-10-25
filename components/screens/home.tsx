@@ -1,16 +1,38 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, TouchableOpacity } from 'react-native';
+// HomeScreen.tsx
+
+import React, { useState, useRef, useEffect } from 'react';
+import {
+  View,
+  StyleSheet,
+  TouchableOpacity,
+  Animated,
+  Keyboard,
+  Platform,
+  SafeAreaView,
+  TouchableWithoutFeedback,
+  Easing,
+} from 'react-native';
 import { useRouter } from 'expo-router';
 import { AnimatedCircle } from '../welcome-circle';
 import { Ionicons } from '@expo/vector-icons';
 import { ChatInterface } from '../interfaces/chat';
 import { VoiceInterface } from '../interfaces/voice';
 import { useSupabaseSession } from '../../lib/hook';
-import { VoiceTextToggleButton } from '../interfaces/voice/toggle'
-import { ChatInput } from './input'
+import { VoiceTextToggleButton } from '../interfaces/voice/toggle';
+import { ChatInput } from './input';
 
-type HomeDrawerParamList = {
-  index: undefined;
+// Define a type for EasingFunction
+type EasingFunction = (value: number) => number;
+
+// Define a type for supported easing strings from keyboard events
+type KeyboardEasing = 'easeInOut' | 'easeIn' | 'easeOut' | 'linear';
+
+// Create a mapping from KeyboardEasing to React Native Easing functions
+const easingMapping: Record<KeyboardEasing, EasingFunction> = {
+  easeInOut: Easing.inOut(Easing.ease),
+  easeIn: Easing.in(Easing.ease),
+  easeOut: Easing.out(Easing.ease),
+  linear: Easing.linear,
 };
 
 export const HomeScreen: React.FC = () => {
@@ -18,95 +40,159 @@ export const HomeScreen: React.FC = () => {
   const router = useRouter();
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
 
-  const getStartedPrompt = mode === 'voice' ? 'Start talking to get started' : 'Send a message to get started'
-  const session = useSupabaseSession()
+  const getStartedPrompt =
+    mode === 'voice'
+      ? 'Start talking to get started'
+      : 'Send a message to get started';
+  const session = useSupabaseSession();
+
+  // Animated value for bottom padding
+  const animatedPaddingBottom = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    let keyboardShowListener: any;
+    let keyboardHideListener: any;
+
+    if (Platform.OS === 'ios') {
+      keyboardShowListener = Keyboard.addListener('keyboardWillShow', handleKeyboardShow);
+      keyboardHideListener = Keyboard.addListener('keyboardWillHide', handleKeyboardHide);
+    } else {
+      keyboardShowListener = Keyboard.addListener('keyboardDidShow', handleKeyboardShow);
+      keyboardHideListener = Keyboard.addListener('keyboardDidHide', handleKeyboardHide);
+    }
+
+    return () => {
+      keyboardShowListener.remove();
+      keyboardHideListener.remove();
+    };
+  }, []);
+
+  const handleKeyboardShow = (event: any) => {
+    const { duration, easing, endCoordinates } = event;
+    const keyboardHeight = endCoordinates.height;
+
+    // Cast easing to KeyboardEasing type, default to 'easeOut' if undefined
+    const easingFunction = easingMapping[easing as KeyboardEasing] || Easing.out(Easing.ease);
+
+    Animated.timing(animatedPaddingBottom, {
+      toValue: keyboardHeight,
+      duration: duration || 300,
+      easing: easingFunction,
+      useNativeDriver: false, // padding is not supported by native driver
+    }).start();
+  };
+
+  const handleKeyboardHide = (event: any) => {
+    const { duration, easing } = event;
+
+    // Cast easing to KeyboardEasing type, default to 'easeOut' if undefined
+    const easingFunction = easingMapping[easing as KeyboardEasing] || Easing.out(Easing.ease);
+
+    Animated.timing(animatedPaddingBottom, {
+      toValue: 0,
+      duration: duration || 300,
+      easing: easingFunction,
+      useNativeDriver: false,
+    }).start();
+  };
+
+  // Animated values for ChatInput
+  const chatInputOpacity = useRef(new Animated.Value(mode === 'text' ? 1 : 0)).current;
+
+  // Animate ChatInput on mode change
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(chatInputOpacity, {
+        toValue: mode === 'text' ? 1 : 0,
+        duration: 400, // Increased duration for smoother animation
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [mode]);
 
   return (
-    <View style={styles.container}>
-      {/* Header */}
-      <View style={styles.header}>
-        <View style={{ flex: 1 }}>
-          {/* Placeholder for alignment */}
-        </View>
+    <SafeAreaView style={styles.safeArea}>
+      {/* Dismiss Keyboard When Tapping Outside */}
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+        <Animated.View style={[styles.innerContainer, { paddingBottom: animatedPaddingBottom }]}>
+          {/* Header */}
+          <View style={styles.header}>
+            <View style={{ flex: 1 }}>
+              {/* Placeholder for alignment */}
+            </View>
 
-        {/* Settings Button */}
-        <TouchableOpacity onPress={() => router.push('/settings')}>
-          <Ionicons name="settings-outline" size={24} color="blue" />
-        </TouchableOpacity>
-      </View>
+            {/* Settings Button */}
+            <TouchableOpacity onPress={() => router.push('/settings')}>
+              <Ionicons name="settings-outline" size={24} color="blue" />
+            </TouchableOpacity>
+          </View>
 
-      {/* Main Content */}
-      <View style={styles.mainContent}>
-        <View style={styles.circleContainer}>
-          <AnimatedCircle text={getStartedPrompt} />
-        </View>
-        {mode === 'voice' ? (
-          session.session && <VoiceInterface session={session.session} />
-        ) : (
-          <ChatInterface />
-        )}
-      </View>
+          {/* Main Content */}
+          <View style={styles.mainContent}>
+            {mode === 'voice' ? (
+              session.session && <VoiceInterface session={session.session} />
+            ) : (
+              <ChatInterface />
+            )}
+          </View>
 
-      {/* Custom Text Switch */}
-      <View style={styles.switchContainer}>
-        <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
-        <View style={{
-          flex: 9
-        }}>
-          {mode === 'voice' ? <View /> : <View style={styles.inputContainer}>
-            <ChatInput onSend={() => {}} />
-          </View>}
-        </View>
-      </View>
-    </View>
+          {/* Custom Text Switch and ChatInput */}
+          <View style={styles.switchContainer}>
+            <Animated.View
+              style={[
+                styles.inputContainer,
+                {
+                  opacity: chatInputOpacity,
+                },
+              ]}
+              pointerEvents={mode === 'text' ? 'auto' : 'none'} // Prevent interaction when hidden
+            >
+              <ChatInput onSend={() => {}} />
+            </Animated.View>
+            <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
+          </View>
+        </Animated.View>
+      </TouchableWithoutFeedback>
+    </SafeAreaView>
   );
 };
 
 const styles = StyleSheet.create({
-  container: {
+  safeArea: {
     flex: 1,
-    paddingTop: 50,
+    backgroundColor: '#EFE5FF', // Ensure background is consistent
   },
-  mainContent: {
+  innerContainer: {
     flex: 1,
-    position: 'relative', // Enable absolute positioning within
-  },
-  circleContainer: {
-    position: 'absolute', // Absolutely positioned within mainContent
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: 'center',
-    alignItems: 'center',
-    zIndex: 0, // Ensure it's beneath other content
-    pointerEvents: 'none', // Allow touches to pass through
+    justifyContent: 'space-between', // Distribute space between main content and input
+    paddingHorizontal: 10, // Optional: Adjust based on design
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 10,
     paddingBottom: 10,
     justifyContent: 'space-between',
   },
-  buttonContainer: {
-    marginVertical: 20,
-    paddingHorizontal: 20,
-    width: '80%',
-    alignSelf: 'center',
+  mainContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  circleContainer: {
+    // Removed absolute positioning to allow layout to adjust with padding
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   switchContainer: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'flex-end',
-    paddingBottom: 30,
-    paddingHorizontal: 10,
   },
   inputContainer: {
+    flex: 1, // Allow ChatInput to take up available space
     flexDirection: 'row',
     alignItems: 'flex-end',
+    marginRight: 10, // Optional: Adjust spacing between ChatInput and Toggle Button
   },
 });
-
-export default HomeScreen;
