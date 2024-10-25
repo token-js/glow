@@ -1,23 +1,27 @@
-import React from 'react';
+import React, { useState, useRef, ReactElement, useEffect } from 'react';
 import {
   View,
   Text,
+  TextInput,
   TouchableOpacity,
   StyleSheet,
+  Animated,
+  Easing,
 } from 'react-native';
 import { signupStyles, theme } from '../../../lib/style';
 
 type Props = {
-  voice: string | null;
-  setVoice: React.Dispatch<React.SetStateAction<string>>;
-  onFinish: () => Promise<void>;
-};
+  name: string
+  setGender: React.Dispatch<React.SetStateAction<string>>
+  gender: string | null
+  onNext: () => void;
+}
 
-export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onFinish }) => {
-  const voices = ['Voice 1', 'Voice 2', 'Voice 3'];
+export const GenderSection: React.FC<Props> = ({ name, setGender, gender, onNext }) => {
+  const genders = ['Male', 'Female', 'Nonbinary'];
 
-  const handleVoiceSelect = async (selectedVoice: string) => {
-    setVoice(selectedVoice);
+  const handleGenderSelect = async (selectedVoice: string) => {
+    setGender(selectedVoice);
   };
 
   return (
@@ -25,39 +29,39 @@ export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onFinish }) =>
       <View style={signupStyles.sectionContent}>
         <View />
         <View style={signupStyles.sectionMainContent}>
-          <Text style={theme.title}>Select a voice</Text>
-          {voices.map((v) => (
+          <Text style={theme.title}>Hi {name}, what's your gender?</Text>
+          {genders.map((g) => (
             <TouchableOpacity
-              key={v}
+              key={g}
               style={[
                 theme.button,
-                voice === v && theme.selectedButton,
+                gender === g && theme.selectedButton,
               ]}
-              onPress={() => handleVoiceSelect(v)}
+              onPress={() => handleGenderSelect(g)}
               accessible={true}
-              accessibilityLabel={`Select ${v}`}
+              accessibilityLabel={`Select ${g}`}
             >
               <Text
                 style={[
                   theme.buttonText,
-                  voice === v && theme.selectedButtonText,
+                  gender === g && theme.selectedButtonText,
                 ]}
               >
-                {v}
+                {g}
               </Text>
             </TouchableOpacity>
           ))}
         </View>
         <TouchableOpacity
-          disabled={!voice}
           style={signupStyles.confirmButton}
-          onPress={onFinish}
+          onPress={onNext}
           accessible={true}
+          disabled={!gender}
           accessibilityLabel="Confirm"
         >
           <Text style={signupStyles.confirmButtonText}>Confirm</Text>
         </TouchableOpacity>          
       </View>
     </View>
-  );
-};
+  )
+}
