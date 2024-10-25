@@ -20,7 +20,8 @@ import { VoiceInterface } from '../interfaces/voice';
 import { useSupabaseSession } from '../../lib/hook';
 import { VoiceTextToggleButton } from '../interfaces/voice/toggle';
 import { ChatInput } from './input';
-import { VoiceWaveform } from '../interfaces/voice/waveform'
+import { useSpeakingParticipants } from '@livekit/react-native';
+import Waveform from '../interfaces/voice/waveform';
 
 // Define a type for EasingFunction
 type EasingFunction = (value: number) => number;
@@ -40,6 +41,9 @@ export const HomeScreen: React.FC = () => {
   const [mode, setMode] = useState<'text' | 'voice'>('voice');
   const router = useRouter();
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
+
+  const [agentAudioLevel, setAgentAudioLevel] = useState<number>(0.0)
+  const [userAudioLevel, setUserAudioLevel] = useState<number>(0.0)
 
   const getStartedPrompt =
     mode === 'voice'
@@ -138,7 +142,7 @@ export const HomeScreen: React.FC = () => {
           {/* Main Content */}
           <View style={styles.mainContent}>
             {mode === 'voice' ? (
-              session.session && <VoiceInterface session={session.session} />
+              session.session && <VoiceInterface session={session.session} setUserAudioLevel={setUserAudioLevel} setAgentAudioLevel={setAgentAudioLevel} />
             ) : (
               <ChatInterface />
             )}
@@ -147,8 +151,8 @@ export const HomeScreen: React.FC = () => {
           {/* Custom Text Switch and ChatInput */}
           <View style={styles.switchContainer}>
             <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
-            <VoiceWaveform />
-            {/* <Animated.View
+            {/* <Waveform audioLevel={userAudioLevel} /> */}
+            <Animated.View
               style={[
                 styles.inputContainer,
                 {
@@ -158,7 +162,7 @@ export const HomeScreen: React.FC = () => {
               pointerEvents={mode === 'text' ? 'auto' : 'none'} // Prevent interaction when hidden
             >
               <ChatInput onSend={() => {}} />
-            </Animated.View> */}
+            </Animated.View>
           </View>
         </Animated.View>
       </TouchableWithoutFeedback>
@@ -169,7 +173,6 @@ export const HomeScreen: React.FC = () => {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: '#EFE5FF', // Ensure background is consistent
   },
   innerContainer: {
     flex: 1,

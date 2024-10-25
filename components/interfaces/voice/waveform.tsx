@@ -1,183 +1,91 @@
-// VoiceWaveform.tsx
+import React, { useEffect, useRef, useState } from 'react';
+import { View, StyleSheet, Animated } from 'react-native';
 
-import React, { useEffect, useState, useRef } from 'react';
-import {
-  View,
-  StyleSheet,
-  Animated,
-  Easing,
-  Dimensions,
-  Platform,
-} from 'react-native';
-import { Audio, InterruptionModeIOS, InterruptionModeAndroid } from 'expo-av';
+const Waveform = ({ audioLevel }) => {
+  const numberOfBars = 30;
+  const barScales = useRef(
+    Array.from({ length: numberOfBars }, () => new Animated.Value(0.05))
+  ).current;
 
-const { width } = Dimensions.get('window');
+  const [containerWidth, setContainerWidth] = useState(0);
+  const [barWidth, setBarWidth] = useState(8); // Default width
 
-const NUM_BARS = Math.floor(width / (5 + 3)); // BAR_WIDTH + BAR_MARGIN
-const BAR_WIDTH = 5; // Width of each bar
-const BAR_MARGIN = 3; // Margin between bars
-const MAX_BAR_HEIGHT = 100; // Maximum height of a bar in pixels
-const SMOOTHING_FACTOR = 0.8; // Smoothing factor for audio levels (0 < factor <= 1)
-
-export const VoiceWaveform: React.FC = () => {
-  const [isRecording, setIsRecording] = useState<boolean>(false);
-  const [audioLevels, setAudioLevels] = useState<number[]>([]);
-  const animatedValues = useRef<Animated.Value[]>([]).current;
-  const smoothing = useRef<number[]>([]).current;
-  const recording = useRef<Audio.Recording | null>(null);
-
-  // Initialize animated values and smoothing buffer
   useEffect(() => {
-    if (animatedValues.length === 0) {
-      for (let i = 0; i < NUM_BARS; i++) {
-        animatedValues.push(new Animated.Value(0));
-        smoothing.push(0);
-      }
-    }
-  }, []);
+    const centerIndex = (numberOfBars - 1) / 2;
 
-  // Request microphone permissions and start recording
-  useEffect(() => {
-    const initRecording = async () => {
-      try {
-        // Request permissions
-        const permission = await Audio.requestPermissionsAsync();
-        if (permission.status !== 'granted') {
-          console.warn('Microphone permission not granted');
-          return;
-        }
+    // Standard deviation for the Gaussian function
+    const stdDev = numberOfBars / 5;
 
-        // Set audio mode
-        await Audio.setAudioModeAsync({
-          allowsRecordingIOS: true,
-          playsInSilentModeIOS: true,
-          interruptionModeIOS: InterruptionModeIOS.DoNotMix,
-          shouldDuckAndroid: false,
-          interruptionModeAndroid: InterruptionModeAndroid.DoNotMix,
-          playThroughEarpieceAndroid: false,
-        });
+    barScales.forEach((barScale, index) => {
+      const positionFactor = Math.exp(
+        -Math.pow(index - centerIndex, 2) / (2 * Math.pow(stdDev, 2))
+      );
 
-        // Initialize recording
-        const rec = new Audio.Recording();
-        recording.current = rec;
+      const targetScale = Math.max(0.05, audioLevel * positionFactor);
 
-        // Prepare to record with metering enabled
-        await rec.prepareToRecordAsync(Audio.RecordingOptionsPresets.HIGH_QUALITY);
-        await rec.startAsync();
-        setIsRecording(true);
-
-        // Listen to recording status updates
-        rec.setOnRecordingStatusUpdate((status) => {
-          if (status.isRecording && typeof status.metering === 'number') {
-            const level = status.metering; // Metering is between 0 (silence) and 1 (max)
-            updateAudioLevels(level);
-          }
-        });
-
-      } catch (error) {
-        console.error('Failed to start recording', error);
-      }
-    };
-
-    initRecording();
-
-    // Cleanup on unmount
-    return () => {
-      const stopRecording = async () => {
-        if (recording.current) {
-          try {
-            await recording.current.stopAndUnloadAsync();
-            setIsRecording(false);
-          } catch (error) {
-            console.error('Failed to stop recording', error);
-          }
-        }
-      };
-      stopRecording();
-    };
-  }, []);
-
-  /**
-   * Updates the audio levels and animates the waveform.
-   * @param {number} level - The current audio level (0 to 1).
-   */
-  const updateAudioLevels = (level: number) => {
-    setAudioLevels((prevLevels) => {
-      const newLevels = [...prevLevels, level];
-      if (newLevels.length > NUM_BARS) {
-        newLevels.shift();
-      }
-
-      // Apply smoothing to the audio levels
-      const smoothedLevels = newLevels.map((lvl, index) => {
-        smoothing[index] = SMOOTHING_FACTOR * smoothing[index] + (1 - SMOOTHING_FACTOR) * lvl;
-        return smoothing[index];
-      });
-
-      // Animate each bar's scaleY based on the smoothed audio level
-      smoothedLevels.forEach((lvl, index) => {
-        Animated.timing(animatedValues[index], {
-          toValue: lvl,
-          duration: 200,
-          easing: Easing.ease,
-          useNativeDriver: true, // Enable native driver for better performance
-        }).start();
-      });
-
-      return newLevels;
+      Animated.timing(barScale, {
+        toValue: targetScale,
+        duration: 100,
+        useNativeDriver: true, // Use native driver for better performance
+      }).start();
     });
-  };
+  }, [audioLevel]);
 
-  /**
-   * Renders the animated waveform.
-   * @returns {JSX.Element} - The waveform component.
-   */
-  const renderWaveform = () => {
-    const bars = animatedValues.map((animatedScale, index) => {
-      return (
+  useEffect(() => {
+    if (containerWidth > 0) {
+      const marginHorizontal = 1; // Same as in styles.bar
+      const totalMargins = 2 * marginHorizontal * numberOfBars; // Each bar has margins on both sides
+      const paddingLeft = 10; // Same as in styles.container
+      const paddingRight = 0; // Update if you have paddingRight
+
+      const availableWidth = containerWidth - paddingLeft - paddingRight - totalMargins;
+
+      const calculatedBarWidth = availableWidth / numberOfBars;
+
+      setBarWidth(calculatedBarWidth);
+    }
+  }, [containerWidth, numberOfBars]);
+
+  return (
+    <View
+      style={styles.container}
+      onLayout={(event) => {
+        const { width } = event.nativeEvent.layout;
+        if (containerWidth === 0) {
+          setContainerWidth(width);
+        }
+      }}
+    >
+      {barScales.map((barScale, index) => (
         <Animated.View
           key={index}
           style={[
             styles.bar,
             {
-              transform: [{ scaleY: animatedScale }],
+              width: barWidth,
+              transform: [{ scaleY: barScale }],
             },
           ]}
         />
-      );
-    });
-
-    return <View style={styles.waveformContainer}>{bars}</View>;
-  };
-
-  return (
-    <View style={styles.container}>
-      {renderWaveform()}
+      ))}
     </View>
   );
 };
 
 const styles = StyleSheet.create({
   container: {
-    height: MAX_BAR_HEIGHT + 20, // Adding padding
-    width: '100%',
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    justifyContent: 'center',
-    backgroundColor: '#EFE5FF', // Match your app's background
-    padding: 10,
-  },
-  waveformContainer: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    alignItems: 'center',
+    height: 50,
+    paddingHorizontal: 10,
+    // paddingLeft: 10,
+    // paddingRight: 10,
   },
   bar: {
-    width: BAR_WIDTH,
-    height: MAX_BAR_HEIGHT,
-    marginHorizontal: BAR_MARGIN / 2,
-    backgroundColor: '#4A90E2', // Waveform color
-    borderRadius: BAR_WIDTH / 2,
+    height: 50,
+    backgroundColor: '#000',
+    marginHorizontal: 1,
   },
 });
 
-export default VoiceWaveform;
+export default Waveform;
