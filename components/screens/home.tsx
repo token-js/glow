@@ -20,6 +20,7 @@ import { VoiceInterface } from '../interfaces/voice';
 import { useSupabaseSession } from '../../lib/hook';
 import { VoiceTextToggleButton } from '../interfaces/voice/toggle';
 import { ChatInput } from './input';
+import { VoiceWaveform } from '../interfaces/voice/waveform'
 
 // Define a type for EasingFunction
 type EasingFunction = (value: number) => number;
@@ -71,11 +72,17 @@ export const HomeScreen: React.FC = () => {
     const { duration, easing, endCoordinates } = event;
     const keyboardHeight = endCoordinates.height;
 
+    // Define the offset
+    const OFFSET = 30; // Pixels to subtract from keyboard height
+
+    // Calculate the new paddingBottom, ensuring it doesn't go below 0
+    const newPaddingBottom = keyboardHeight - OFFSET > 0 ? keyboardHeight - OFFSET : 0;
+
     // Cast easing to KeyboardEasing type, default to 'easeOut' if undefined
     const easingFunction = easingMapping[easing as KeyboardEasing] || Easing.out(Easing.ease);
 
     Animated.timing(animatedPaddingBottom, {
-      toValue: keyboardHeight,
+      toValue: newPaddingBottom,
       duration: duration || 300,
       easing: easingFunction,
       useNativeDriver: false, // padding is not supported by native driver
@@ -139,7 +146,9 @@ export const HomeScreen: React.FC = () => {
 
           {/* Custom Text Switch and ChatInput */}
           <View style={styles.switchContainer}>
-            <Animated.View
+            <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
+            <VoiceWaveform />
+            {/* <Animated.View
               style={[
                 styles.inputContainer,
                 {
@@ -149,8 +158,7 @@ export const HomeScreen: React.FC = () => {
               pointerEvents={mode === 'text' ? 'auto' : 'none'} // Prevent interaction when hidden
             >
               <ChatInput onSend={() => {}} />
-            </Animated.View>
-            <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
+            </Animated.View> */}
           </View>
         </Animated.View>
       </TouchableWithoutFeedback>
@@ -193,6 +201,8 @@ const styles = StyleSheet.create({
     flex: 1, // Allow ChatInput to take up available space
     flexDirection: 'row',
     alignItems: 'flex-end',
-    marginRight: 10, // Optional: Adjust spacing between ChatInput and Toggle Button
+    marginRight: 0, // Optional: Adjust spacing between ChatInput and Toggle Button
   },
 });
+
+export default HomeScreen;

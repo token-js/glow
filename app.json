@@ -39,6 +39,12 @@
           "iosUrlScheme": "com.googleusercontent.apps.118244602240-hj3ukvu2rn64cvnop7of44b0psuackki"
         }
       ],
+      [
+        "expo-av",
+        {
+          "microphonePermission": "Allow $(PRODUCT_NAME) to access your microphone."
+        }
+      ],
       "expo-router",
       "@livekit/react-native-expo-plugin",
       "@config-plugins/react-native-webrtc"
