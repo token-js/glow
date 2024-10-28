@@ -14,55 +14,19 @@ import {
 import { Ionicons } from '@expo/vector-icons';
 import { TypingIndicator } from '../../typing-indicator';
 
-type Message = {
+export type Message = {
   id: string;
   text: string;
   sender?: 'user' | 'bot';
   type: 'normal' | 'typing';
 };
 
-export const ChatInterface: React.FC = () => {
-  const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
-  const flatListRef = useRef<FlatList>(null);
+type Props = {
+  flatListRef: React.RefObject<FlatList<any>>
+  messages: Message[]
+}
 
-  const sendMessage = () => {
-    if (inputText.trim() === '') {
-      return;
-    }
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'user',
-      type: 'normal',
-    };
-
-    setMessages((prevMessages) => [...prevMessages, userMessage]);
-
-    // Add typing indicator
-    const typingMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      text: '',
-      type: 'typing',
-    };
-
-    setMessages((prevMessages) => [...prevMessages, typingMessage]);
-
-    // Simulate bot response
-    setTimeout(() => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.type === 'typing' ? { ...msg, text: 'This is a hardcoded response from the bot.', sender: 'bot', type: 'normal' } : msg
-        )
-      );
-    }, 1500); // Simulate delay
-    // Adjusted delay to 1500ms for better user experience
-
-    setInputText('');
-    Keyboard.dismiss();
-  };
-
+export const ChatInterface: React.FC<Props> = ({ flatListRef, messages }) => {
   const renderItem = ({ item }: { item: Message }) => {
     if (item.type === 'typing') {
       return (
@@ -113,6 +77,7 @@ export const ChatInterface: React.FC = () => {
 const styles = StyleSheet.create({
   chatContainer: {
     flex: 1,
+    width: '100%'
   },
   circleContainer: {
     marginTop: 50,

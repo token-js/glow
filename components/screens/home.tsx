@@ -9,10 +9,11 @@ import {
   SafeAreaView,
   TouchableWithoutFeedback,
   Easing,
+  FlatList,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ChatInterface } from '../interfaces/chat';
+import { ChatInterface, Message } from '../interfaces/chat';
 import { VoiceInterface } from '../interfaces/voice';
 import { useSupabaseSession } from '../../lib/hook';
 import { VoiceTextToggleButton } from '../interfaces/voice/toggle';
@@ -29,6 +30,7 @@ const easingMapping: Record<KeyboardEasing, EasingFunction> = {
   linear: Easing.linear,
 };
 
+
 export const HomeScreen: React.FC = () => {
   const [mode, setMode] = useState<'text' | 'voice'>('voice');
   const router = useRouter();
@@ -42,6 +44,46 @@ export const HomeScreen: React.FC = () => {
   const chatInputOpacity = useRef(new Animated.Value(mode === 'text' ? 1 : 0)).current;
   const waveformOpacity = useRef(new Animated.Value(mode === 'voice' ? 1 : 0)).current;
   const animatedPaddingBottom = useRef(new Animated.Value(0)).current;
+
+
+  const [messages, setMessages] = useState<Message[]>([]);
+  const flatListRef = useRef<FlatList>(null);
+
+  const sendMessage = (inputText: string) => {
+    console.log('sending')
+    console.log(inputText)
+    if (inputText.trim() === '') {
+      return;
+    }
+
+    const userMessage: Message = {
+      id: Date.now().toString(),
+      text: inputText,
+      sender: 'user',
+      type: 'normal',
+    };
+
+    setMessages((prevMessages) => [...prevMessages, userMessage]);
+
+    // Add typing indicator
+    const typingMessage: Message = {
+      id: (Date.now() + 1).toString(),
+      text: '',
+      type: 'typing',
+    };
+
+    setMessages((prevMessages) => [...prevMessages, typingMessage]);
+
+    // Simulate bot response
+    setTimeout(() => {
+      setMessages((prevMessages) =>
+        prevMessages.map((msg) =>
+          msg.type === 'typing' ? { ...msg, text: 'This is a hardcoded response from the bot.', sender: 'bot', type: 'normal' } : msg
+        )
+      );
+    }, 1500);
+  };
+
 
   useEffect(() => {
     let keyboardShowListener: any;
@@ -126,7 +168,7 @@ export const HomeScreen: React.FC = () => {
                 />
               )
             ) : (
-              <ChatInterface />
+              <ChatInterface flatListRef={flatListRef} messages={messages} />
             )}
           </View>
 
@@ -157,7 +199,7 @@ export const HomeScreen: React.FC = () => {
                 ]}
                 pointerEvents={mode === 'text' ? 'auto' : 'none'}
               >
-                <ChatInput onSend={() => {}} />
+                <ChatInput onSend={sendMessage} />
               </Animated.View>
             </View>
           </View>

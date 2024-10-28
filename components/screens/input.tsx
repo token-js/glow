@@ -19,7 +19,8 @@ export const ChatInput: React.FC<Props> = ({ onSend }) => {
     if (message.trim().length > 0) {
       onSend(message.trim());
       setMessage('');
-      Keyboard.dismiss();
+      // Keep the keyboard open
+      textInputRef.current?.focus();
     }
   };
 
@@ -30,12 +31,11 @@ export const ChatInput: React.FC<Props> = ({ onSend }) => {
         style={styles.textInput}
         placeholder="iMessage"
         placeholderTextColor="#8E8E93"
-        multiline
         value={message}
         onChangeText={setMessage}
+        blurOnSubmit={false}
         returnKeyType="send"
         onSubmitEditing={handleSend}
-        blurOnSubmit={false} // Keeps the keyboard open after sending
       />
     </View>
   );

@@ -13,6 +13,9 @@ import { VoiceSelector } from './voice';
 import { NameSection } from './name'
 import { GenderSection } from './gender'
 import { signupStyles, theme } from '../../lib/style';
+import { router } from 'expo-router';
+import HomeScreen from '../screens/home';
+import { convertSQLToSettings } from '../../lib/utils'
 
 export interface StepProps {
   onNext: () => void;
@@ -34,9 +37,10 @@ export type StepRenderProps = StepProps;
 type Props = {
   session: Session
   settings: Settings
+  setSettings: React.Dispatch<React.SetStateAction<Settings | null>>
 }
 
-export const SignupFlow: React.FC<Props> = ({ session }) => {
+export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [topSection, setTopSection] = useState<'A' | 'B'>('A')
@@ -87,24 +91,28 @@ export const SignupFlow: React.FC<Props> = ({ session }) => {
   }
 
   const onFinish = async (): Promise<void> => {
-    Animated.parallel([
-      Animated.timing(outgoingAnim, {
-        toValue: 0,
-        duration: 1000,
-        useNativeDriver: true,
-        easing: Easing.in(Easing.ease),
-      }),
-    ]).start(async () => {
-      const { error } = await supabase
-        .from('settings')
-        .update({ name: name, gender: gender.toLowerCase(), voice: voice.replace(' ', '_').toLowerCase() })
-        .eq('id', session.user.id)
-        .select()
+    const { error, data } = await supabase
+      .from('settings')
+      .update({ name: name, gender: gender.toLowerCase(), voice: voice.replace(' ', '_').toLowerCase() })
+      .eq('id', session.user.id)
+      .select()
 
-      if (error) {
-        // do something
-      }
-    });
+    const settings = convertSQLToSettings(data)
+
+    if (error === null) {
+      Animated.parallel([
+        Animated.timing(outgoingAnim, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+          easing: Easing.in(Easing.ease),
+        }),
+      ]).start(async () => {
+        setSettings(settings)
+      });
+    } else {
+      console.error(error)
+    }
   };
 
   const steps: Step[] = [
