@@ -1,5 +1,3 @@
-// HomeScreen.tsx
-
 import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
@@ -13,23 +11,17 @@ import {
   Easing,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { AnimatedCircle } from '../welcome-circle';
 import { Ionicons } from '@expo/vector-icons';
 import { ChatInterface } from '../interfaces/chat';
 import { VoiceInterface } from '../interfaces/voice';
 import { useSupabaseSession } from '../../lib/hook';
 import { VoiceTextToggleButton } from '../interfaces/voice/toggle';
 import { ChatInput } from './input';
-import { useSpeakingParticipants } from '@livekit/react-native';
 import Waveform from '../interfaces/voice/waveform';
 
-// Define a type for EasingFunction
 type EasingFunction = (value: number) => number;
-
-// Define a type for supported easing strings from keyboard events
 type KeyboardEasing = 'easeInOut' | 'easeIn' | 'easeOut' | 'linear';
 
-// Create a mapping from KeyboardEasing to React Native Easing functions
 const easingMapping: Record<KeyboardEasing, EasingFunction> = {
   easeInOut: Easing.inOut(Easing.ease),
   easeIn: Easing.in(Easing.ease),
@@ -42,16 +34,13 @@ export const HomeScreen: React.FC = () => {
   const router = useRouter();
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
 
-  const [agentAudioLevel, setAgentAudioLevel] = useState<number>(0.0)
-  const [userAudioLevel, setUserAudioLevel] = useState<number>(0.0)
+  const [agentAudioLevel, setAgentAudioLevel] = useState<number>(0.0);
+  const [userAudioLevel, setUserAudioLevel] = useState<number>(0.0);
 
-  const getStartedPrompt =
-    mode === 'voice'
-      ? 'Start talking to get started'
-      : 'Send a message to get started';
   const session = useSupabaseSession();
 
-  // Animated value for bottom padding
+  const chatInputOpacity = useRef(new Animated.Value(mode === 'text' ? 1 : 0)).current;
+  const waveformOpacity = useRef(new Animated.Value(mode === 'voice' ? 1 : 0)).current;
   const animatedPaddingBottom = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
@@ -75,28 +64,20 @@ export const HomeScreen: React.FC = () => {
   const handleKeyboardShow = (event: any) => {
     const { duration, easing, endCoordinates } = event;
     const keyboardHeight = endCoordinates.height;
-
-    // Define the offset
-    const OFFSET = 30; // Pixels to subtract from keyboard height
-
-    // Calculate the new paddingBottom, ensuring it doesn't go below 0
+    const OFFSET = 30;
     const newPaddingBottom = keyboardHeight - OFFSET > 0 ? keyboardHeight - OFFSET : 0;
-
-    // Cast easing to KeyboardEasing type, default to 'easeOut' if undefined
     const easingFunction = easingMapping[easing as KeyboardEasing] || Easing.out(Easing.ease);
 
     Animated.timing(animatedPaddingBottom, {
       toValue: newPaddingBottom,
       duration: duration || 300,
       easing: easingFunction,
-      useNativeDriver: false, // padding is not supported by native driver
+      useNativeDriver: false,
     }).start();
   };
 
   const handleKeyboardHide = (event: any) => {
     const { duration, easing } = event;
-
-    // Cast easing to KeyboardEasing type, default to 'easeOut' if undefined
     const easingFunction = easingMapping[easing as KeyboardEasing] || Easing.out(Easing.ease);
 
     Animated.timing(animatedPaddingBottom, {
@@ -107,15 +88,17 @@ export const HomeScreen: React.FC = () => {
     }).start();
   };
 
-  // Animated values for ChatInput
-  const chatInputOpacity = useRef(new Animated.Value(mode === 'text' ? 1 : 0)).current;
-
-  // Animate ChatInput on mode change
   useEffect(() => {
     Animated.parallel([
       Animated.timing(chatInputOpacity, {
         toValue: mode === 'text' ? 1 : 0,
-        duration: 400, // Increased duration for smoother animation
+        duration: 400,
+        easing: Easing.out(Easing.ease),
+        useNativeDriver: true,
+      }),
+      Animated.timing(waveformOpacity, {
+        toValue: mode === 'voice' ? 1 : 0,
+        duration: 400,
         easing: Easing.out(Easing.ease),
         useNativeDriver: true,
       }),
@@ -124,45 +107,59 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      {/* Dismiss Keyboard When Tapping Outside */}
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <Animated.View style={[styles.innerContainer, { paddingBottom: animatedPaddingBottom }]}>
-          {/* Header */}
           <View style={styles.header}>
-            <View style={{ flex: 1 }}>
-              {/* Placeholder for alignment */}
-            </View>
-
-            {/* Settings Button */}
+            <View style={{ flex: 1 }} />
             <TouchableOpacity onPress={() => router.push('/settings')}>
               <Ionicons name="settings-outline" size={24} color="blue" />
             </TouchableOpacity>
           </View>
 
-          {/* Main Content */}
           <View style={styles.mainContent}>
             {mode === 'voice' ? (
-              session.session && <VoiceInterface session={session.session} setUserAudioLevel={setUserAudioLevel} setAgentAudioLevel={setAgentAudioLevel} />
+              session.session && (
+                <VoiceInterface
+                  session={session.session}
+                  setUserAudioLevel={setUserAudioLevel}
+                  setAgentAudioLevel={setAgentAudioLevel}
+                />
+              )
             ) : (
               <ChatInterface />
             )}
           </View>
 
-          {/* Custom Text Switch and ChatInput */}
-          <View style={styles.switchContainer}>
+          <View style={styles.bottomContainer}>
             <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
-            {/* <Waveform audioLevel={userAudioLevel} /> */}
-            <Animated.View
-              style={[
-                styles.inputContainer,
-                {
-                  opacity: chatInputOpacity,
-                },
-              ]}
-              pointerEvents={mode === 'text' ? 'auto' : 'none'} // Prevent interaction when hidden
-            >
-              <ChatInput onSend={() => {}} />
-            </Animated.View>
+            
+            <View style={styles.inputWrapper}>
+              <Animated.View
+                style={[
+                  styles.overlayContainer,
+                  {
+                    opacity: waveformOpacity,
+                    zIndex: mode === 'voice' ? 1 : 0,
+                  },
+                ]}
+                pointerEvents={mode === 'voice' ? 'auto' : 'none'}
+              >
+                <Waveform audioLevel={userAudioLevel} />
+              </Animated.View>
+
+              <Animated.View
+                style={[
+                  styles.overlayContainer,
+                  {
+                    opacity: chatInputOpacity,
+                    zIndex: mode === 'text' ? 1 : 0,
+                  },
+                ]}
+                pointerEvents={mode === 'text' ? 'auto' : 'none'}
+              >
+                <ChatInput onSend={() => {}} />
+              </Animated.View>
+            </View>
           </View>
         </Animated.View>
       </TouchableWithoutFeedback>
@@ -176,8 +173,8 @@ const styles = StyleSheet.create({
   },
   innerContainer: {
     flex: 1,
-    justifyContent: 'space-between', // Distribute space between main content and input
-    paddingHorizontal: 10, // Optional: Adjust based on design
+    justifyContent: 'space-between',
+    paddingHorizontal: 10,
   },
   header: {
     flexDirection: 'row',
@@ -190,21 +187,23 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
   },
-  circleContainer: {
-    // Removed absolute positioning to allow layout to adjust with padding
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  switchContainer: {
+  bottomContainer: {
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
   },
-  inputContainer: {
-    flex: 1, // Allow ChatInput to take up available space
-    flexDirection: 'row',
-    alignItems: 'flex-end',
-    marginRight: 0, // Optional: Adjust spacing between ChatInput and Toggle Button
+  inputWrapper: {
+    flex: 1,
+    position: 'relative',
+    minHeight: 40,
+    marginLeft: 8,
+  },
+  overlayContainer: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    bottom: 0,
   },
 });
 

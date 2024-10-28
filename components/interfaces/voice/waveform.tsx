@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { View, StyleSheet, Animated } from 'react-native';
 
-const Waveform = ({ audioLevel }) => {
+const Waveform = ({ audioLevel }: { audioLevel: number }) => {
   const numberOfBars = 30;
   const barScales = useRef(
     Array.from({ length: numberOfBars }, () => new Animated.Value(0.05))
@@ -78,8 +78,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     height: 50,
     paddingHorizontal: 10,
-    // paddingLeft: 10,
-    // paddingRight: 10,
   },
   bar: {
     height: 50,

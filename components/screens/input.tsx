@@ -1,19 +1,15 @@
-// ChatInput.js
-
 import React, { useState, useRef } from 'react';
 import {
   View,
   TextInput,
-  TouchableOpacity,
   StyleSheet,
   Platform,
   Keyboard,
-  Text,
 } from 'react-native';
 
 type Props = {
-  onSend: (msg: string) => void
-}
+  onSend: (msg: string) => void;
+};
 
 export const ChatInput: React.FC<Props> = ({ onSend }) => {
   const [message, setMessage] = useState('');
@@ -50,9 +46,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'flex-end',
     paddingLeft: 8,
-    backgroundColor: 'transparent', // Ensure it's set appropriately
-    borderWidth: 0, // Explicitly remove any borders
-    // Remove shadow and elevation if present
+    backgroundColor: 'transparent',
+    borderWidth: 0,
     shadowColor: 'transparent',
     elevation: 0,
   },
@@ -67,6 +62,8 @@ const styles = StyleSheet.create({
     paddingVertical: Platform.OS === 'ios' ? 10 : 5,
     fontSize: 16,
     color: '#000000',
-    backgroundColor: 'transparent', // Ensure transparency doesn't cause issues
+    backgroundColor: 'transparent',
   },
 });
+
+export default ChatInput;
