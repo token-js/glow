@@ -44,7 +44,7 @@ model Chats {
   created          DateTime             @default(now()) @map("created")
   modified         DateTime             @updatedAt @map("modified")
   lastMessageTime  DateTime             @map("last_message_time")
-  userId           String               @map("user_id")
+  userId           String               @db.Uuid @map("user_id")
   user             SupabaseUserProfiles @relation(fields: [userId], references: [id])
   messages         ChatMessages[]
 

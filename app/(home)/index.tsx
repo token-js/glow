@@ -10,10 +10,13 @@ import { Settings } from '@prisma/client'
 import { convertSQLToSettings } from '../../lib/utils'
 
 const fetchUserSettings = async (userId: string): Promise<Settings | null> => {
+  console.log('fetching settings')
   const { data } = await supabase
     .from('settings')
     .select()
     .eq('id', userId)
+
+  console.log(data)
 
   return convertSQLToSettings(data)
 }

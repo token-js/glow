@@ -160,12 +160,11 @@ class InflectionLLM(llm.LLM):
 
         messages = _build_oai_context(chat_ctx, id(self))
 
-
         client = OpenAI(
             api_key=os.environ.get("OPENAI_API_KEY"),
         )        
         stream = client.chat.completions.create(
-            messages=client, model='gpt-4o-mini', stream=True
+            messages=messages, model='gpt-4o-mini', stream=True
         )
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
