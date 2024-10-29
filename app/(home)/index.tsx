@@ -10,13 +10,10 @@ import { Settings } from '@prisma/client'
 import { convertSQLToSettings } from '../../lib/utils'
 
 const fetchUserSettings = async (userId: string): Promise<Settings | null> => {
-  console.log('fetching settings')
   const { data } = await supabase
     .from('settings')
     .select()
     .eq('id', userId)
-
-  console.log(data)
 
   return convertSQLToSettings(data)
 }
@@ -37,10 +34,6 @@ export default function App() {
       const { data } = await supabase.auth.getUser()
       setSession(session)
       setUser(data.user)
-
-      console.log(`userId: ${data.user?.id}`)
-      console.log(`session userId: ${session?.user.id}`)
-
       if (data.user) {
         let internalSettings = null
         while (internalSettings === null) {
