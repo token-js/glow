@@ -24,7 +24,7 @@ from typing import AsyncGenerator, List, Dict, Optional
 from typing_extensions import Literal
 from livekit.agents import llm
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice, ChoiceDelta
-
+from openai import OpenAI
 
 class AsyncStream:
     def __init__(self, async_gen):
@@ -160,4 +160,12 @@ class InflectionLLM(llm.LLM):
 
         messages = _build_oai_context(chat_ctx, id(self))
 
-        return LLMStream(oai_stream=get_stream(messages, self._opts), chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
+
+        client = OpenAI(
+            api_key=os.environ.get("OPENAI_API_KEY"),
+        )        
+        stream = client.chat.completions.create(
+            messages=client, model='gpt-4o-mini', stream=True
+        )
+
+        return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)

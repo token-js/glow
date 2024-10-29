@@ -1,10 +1,10 @@
-alter table "_prisma_migrations" enable row level security;
-alter table "user_profiles" enable row level security;
-alter table "settings" enable row level security;
-
 grant usage on schema "public" to anon;
 grant usage on schema "public" to authenticated;
 GRANT ALL ON settings TO authenticated;
+
+alter table "_prisma_migrations" enable row level security;
+alter table "user_profiles" enable row level security;
+alter table "settings" enable row level security;
 
 create policy "Enable users to view their own profile only"
 on "public"."user_profiles"

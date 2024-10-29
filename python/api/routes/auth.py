@@ -41,11 +41,3 @@ async def fetchToken(user=Depends(authorize_user)):
         room=user_id,
     ))
   return token.to_jwt()
-
-
-@router.get("/api/health")
-async def handle_chat_data():
-    return JSONResponse(status_code=200, content={"message": "Alive"})
-
-app = FastAPI()
-app.include_router(router)
