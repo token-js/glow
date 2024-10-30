@@ -30,8 +30,9 @@ model SupabaseUserProfiles {
 }
 
 model Settings {
-  id     String @unique @db.Uuid
+  id     String  @unique @db.Uuid
   name   String?
+  aiName String? @map("ai_name")
   gender Gender?
   voice  Voice?
   user   SupabaseUserProfiles?
