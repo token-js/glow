@@ -4,8 +4,8 @@
   "main": "expo-router/entry",
   "scripts": {
     "start": "expo start",
-    "start:livekit": "python ./python/livekit_worker/main.py dev",
-    "start:api": "uvicorn python.api.main:app --reload --port 8000 --env-file .env",
+    "start:livekit": "python -m server.livekit_worker.main dev",
+    "start:api": "uvicorn server.api.main:app --reload --port 8000 --env-file .env",
     "start:ngrok": "bash -c 'source .env && ngrok http --domain=$NGROK_URL 8000'",
     "start:server": "source .venv/bin/activate && pip install -r python/requirements.txt && concurrently \"npm run start:agent\" \"npm run start:auth\" \"npm run start:ngrok\"",
     "prisma:generate": "prisma generate",

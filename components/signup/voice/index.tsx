@@ -13,9 +13,30 @@ type Props = {
   onFinish: () => Promise<void>;
 };
 
-export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onFinish }) => {
-  const voices = ['Voice 1', 'Voice 2', 'Voice 3'];
+export const VoiceNameMapping = {
+  'Charlotte': 'voice_1',
+  'Brian': 'voice_2',
+  'Jessica': 'voice_3',
+  'George': 'voice_4',
+  'Matilda': 'voice_5',
+  'Charlie': 'voice_6'
+};
 
+export const VoiceNames = Object.keys(VoiceNameMapping);
+
+const styles = StyleSheet.create({
+  buttonGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between', // Optional: Adjusts spacing between buttons
+  },
+  gridButton: {
+    width: '48%', // Two columns (adjust percentage to account for spacing)
+    marginVertical: 5, // Optional: Adds vertical spacing between rows
+  },
+});
+
+export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onFinish }) => {
   const handleVoiceSelect = async (selectedVoice: string) => {
     setVoice(selectedVoice);
   };
@@ -26,27 +47,30 @@ export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onFinish }) =>
         <View />
         <View style={signupStyles.sectionMainContent}>
           <Text style={theme.title}>Select a voice</Text>
-          {voices.map((v) => (
-            <TouchableOpacity
-              key={v}
-              style={[
-                theme.button,
-                voice === v && theme.selectedButton,
-              ]}
-              onPress={() => handleVoiceSelect(v)}
-              accessible={true}
-              accessibilityLabel={`Select ${v}`}
-            >
-              <Text
+          <View style={styles.buttonGrid}>
+            {VoiceNames.map((v) => (
+              <TouchableOpacity
+                key={v}
                 style={[
-                  theme.buttonText,
-                  voice === v && theme.selectedButtonText,
+                  theme.button,
+                  styles.gridButton,
+                  voice === v && theme.selectedButton,
                 ]}
+                onPress={() => handleVoiceSelect(v)}
+                accessible={true}
+                accessibilityLabel={`Select ${v}`}
               >
-                {v}
-              </Text>
-            </TouchableOpacity>
-          ))}
+                <Text
+                  style={[
+                    theme.buttonText,
+                    voice === v && theme.selectedButtonText,
+                  ]}
+                >
+                  {v}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
         </View>
         <TouchableOpacity
           disabled={!voice}

@@ -2,7 +2,7 @@ import os
 import sentry_sdk
 import logging
 from fastapi import FastAPI
-from python.api.routes import (
+from server.api.routes import (
     chat,
     auth
 )

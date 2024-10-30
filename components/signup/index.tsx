@@ -1,20 +1,16 @@
 import React, { useState, useRef, ReactElement, useEffect } from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
   Animated,
   Easing,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Settings } from '@prisma/client';
-import { VoiceSelector } from './voice';
+import { VoiceNameMapping, VoiceSelector } from './voice';
 import { NameSection } from './name'
 import { GenderSection } from './gender'
 import { signupStyles, theme } from '../../lib/style';
-import { router } from 'expo-router';
-import HomeScreen from '../screens/home';
 import { convertSQLToSettings } from '../../lib/utils'
 
 export interface StepProps {
@@ -93,7 +89,7 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
   const onFinish = async (): Promise<void> => {
     const { error, data } = await supabase
       .from('settings')
-      .update({ name: name, gender: gender.toLowerCase(), voice: voice.replace(' ', '_').toLowerCase() })
+      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping] })
       .eq('id', session.user.id)
       .select()
 

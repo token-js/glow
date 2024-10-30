@@ -11,6 +11,7 @@ import useAxios from 'axios-hooks'
 import useFetch from './fetch';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../../../lib/supabase';
+import { Button } from 'react-native';
 
 registerGlobals();
 
@@ -36,6 +37,7 @@ const AudioTracker: React.FC<AudioTrackerProps> = ({ setUserAudioLevel, setAgent
 }
 
 export const VoiceInterface: React.FC<AudioTrackerProps & { session: Session }> = ({ session, setUserAudioLevel, setAgentAudioLevel }) => {
+  const [connected, setConnected] = React.useState<boolean>(false)
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
   const [{ data: token, loading, error }] = useAxios(
     { 
@@ -77,13 +79,19 @@ export const VoiceInterface: React.FC<AudioTrackerProps & { session: Session }> 
   }
 
   return (
-    <LiveKitRoom
-      serverUrl={wsURL}
-      token={token}
-      connect={token !== null ? true : false}
-      audio={true}
-    >
-      <AudioTracker setUserAudioLevel={setUserAudioLevel} setAgentAudioLevel={setAgentAudioLevel} />
-    </LiveKitRoom>
+    <>
+      <Button 
+        title={connected ? 'End Chat' : 'Start Chat'} 
+        onPress={() => setConnected(!connected)}  
+      />
+      <LiveKitRoom
+        serverUrl={wsURL}
+        token={token}
+        connect={token && connected}
+        audio={true}
+      >
+        <AudioTracker setUserAudioLevel={setUserAudioLevel} setAgentAudioLevel={setAgentAudioLevel} />
+      </LiveKitRoom>
+    </>
   );
 };

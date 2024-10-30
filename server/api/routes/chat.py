@@ -7,13 +7,13 @@ from openai import OpenAI
 from pydantic import BaseModel
 from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException
-from python.api.utils import authorize_user
+from server.api.utils import authorize_user
 from prisma import Prisma, enums, types, models
 from pydantic import BaseModel
 from datetime import datetime
-from python.api.analytics import track_sent_message
+from server.api.analytics import track_sent_message
 from fastapi.responses import JSONResponse
-from python.agent.index import generate_response
+from server.agent.index import stream_inflection_response
 import asyncio
 
 
@@ -133,7 +133,7 @@ def stream_text(
     agent_response = ""
     message_history = messages
     stream = asyncio.run(
-        generate_response(
+        stream_inflection_response(
             llm=client, conversation=messages,
         )
     )

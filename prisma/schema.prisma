@@ -71,9 +71,12 @@ enum OpenAIRole {
 }
 
 enum Voice {
-  voice_1
-  voice_2
-  voice_3
+  voice_1 // todo - document specific voice name
+  voice_2 // todo - document specific voice name
+  voice_3 // todo - document specific voice name
+  voice_4 // todo - document specific voice name
+  voice_5 // todo - document specific voice name
+  voice_6 // todo - document specific voice name
 }
 
 enum Gender {
