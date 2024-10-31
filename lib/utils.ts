@@ -9,6 +9,7 @@ export const convertSQLToSettings = (data: any[] | null) => {
     id: settings.id,
     name: settings.name,
     gender: settings.gender,
-    voice: settings.voice
+    voice: settings.voice,
+    aiName: settings.aiName
   }
 }

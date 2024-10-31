@@ -12,6 +12,7 @@ import { NameSection } from './name'
 import { GenderSection } from './gender'
 import { signupStyles, theme } from '../../lib/style';
 import { convertSQLToSettings } from '../../lib/utils'
+import { AINameSection } from './aiName';
 
 export interface StepProps {
   onNext: () => void;
@@ -52,6 +53,7 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
   const [name, setName] = useState<string>('');
   const [gender, setGender] = useState<string>('');
   const [voice, setVoice] = useState<string>('');
+  const [aiName, setAIName] = useState<string>('');
 
   const outgoingAnim = useRef<Animated.Value>(new Animated.Value(1)).current;
   const incomingAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
@@ -89,7 +91,7 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
   const onFinish = async (): Promise<void> => {
     const { error, data } = await supabase
       .from('settings')
-      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping] })
+      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping], ai_name: aiName })
       .eq('id', session.user.id)
       .select()
 
@@ -122,7 +124,11 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
     },
     {
       key: 'voice',
-      component: () => <VoiceSelector voice={voice} setVoice={setVoice} onFinish={onFinish} />
+      component: () => <VoiceSelector voice={voice} setVoice={setVoice} setAIName={setAIName} onNext={onNext} />
+    },
+    {
+      key: 'aiName',
+      component: () => <AINameSection aiName={aiName} setAIName={setAIName} onFinish={onFinish} />
     },
   ];
 
