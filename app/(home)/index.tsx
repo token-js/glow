@@ -7,27 +7,15 @@ import Auth from '../../components/Auth'
 import { HomeScreen } from '../../components/screens/home'
 import { SignupFlow } from '../../components/signup'
 import { Settings } from '@prisma/client'
+import { convertSQLToSettings } from '../../lib/utils'
 
 const fetchUserSettings = async (userId: string): Promise<Settings | null> => {
-  const { data, error } = await supabase
+  const { data } = await supabase
     .from('settings')
     .select()
     .eq('id', userId)
 
-  console.log(data)
-
-  const settings = data?.at(0)
-
-  if (!settings) {
-    return null
-  }
-
-  return {
-    id: settings.id,
-    name: settings.name,
-    gender: settings.gender,
-    voice: settings.voice
-  }
+  return convertSQLToSettings(data)
 }
 
 export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
@@ -46,10 +34,6 @@ export default function App() {
       const { data } = await supabase.auth.getUser()
       setSession(session)
       setUser(data.user)
-
-      console.log(`userId: ${data.user?.id}`)
-      console.log(`session userId: ${session?.user.id}`)
-
       if (data.user) {
         let internalSettings = null
         while (internalSettings === null) {
@@ -78,7 +62,7 @@ export default function App() {
   } else if (session) {
     return (
       <View style={styles.container}>
-        {completedSignup ? <HomeScreen /> : <SignupFlow session={session} settings={settings} />}
+        {completedSignup ? <HomeScreen /> : <SignupFlow session={session} settings={settings} setSettings={setSettings} />}
       </View>
     )
   } else {

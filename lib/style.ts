@@ -1,5 +1,7 @@
 import { StyleSheet } from 'react-native';
 
+export const selectedButtonColor = 'rgba(76, 175, 80, 0.2)'
+
 export const theme = StyleSheet.create({
   // Titles (headers) for various components
   title: {
@@ -38,7 +40,7 @@ export const theme = StyleSheet.create({
   },
   // Selected button (for highlighting selected items)
   selectedButton: {
-    backgroundColor: 'rgba(76, 175, 80, 0.2)',
+    backgroundColor: selectedButtonColor,
   },
   // Button text for all buttons
   buttonText: {

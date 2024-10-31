@@ -1,18 +1,18 @@
 import React, { useState, useRef, ReactElement, useEffect } from 'react';
 import {
   View,
-  Text,
-  TouchableOpacity,
   Animated,
   Easing,
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
 import { Settings } from '@prisma/client';
-import { VoiceSelector } from './voice';
+import { VoiceNameMapping, VoiceSelector } from './voice';
 import { NameSection } from './name'
 import { GenderSection } from './gender'
 import { signupStyles, theme } from '../../lib/style';
+import { convertSQLToSettings } from '../../lib/utils'
+import { AINameSection } from './aiName';
 
 export interface StepProps {
   onNext: () => void;
@@ -34,9 +34,10 @@ export type StepRenderProps = StepProps;
 type Props = {
   session: Session
   settings: Settings
+  setSettings: React.Dispatch<React.SetStateAction<Settings | null>>
 }
 
-export const SignupFlow: React.FC<Props> = ({ session }) => {
+export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [topSection, setTopSection] = useState<'A' | 'B'>('A')
@@ -52,6 +53,7 @@ export const SignupFlow: React.FC<Props> = ({ session }) => {
   const [name, setName] = useState<string>('');
   const [gender, setGender] = useState<string>('');
   const [voice, setVoice] = useState<string>('');
+  const [aiName, setAIName] = useState<string>('');
 
   const outgoingAnim = useRef<Animated.Value>(new Animated.Value(1)).current;
   const incomingAnim = useRef<Animated.Value>(new Animated.Value(0)).current;
@@ -87,24 +89,28 @@ export const SignupFlow: React.FC<Props> = ({ session }) => {
   }
 
   const onFinish = async (): Promise<void> => {
-    Animated.parallel([
-      Animated.timing(outgoingAnim, {
-        toValue: 0,
-        duration: 1000,
-        useNativeDriver: true,
-        easing: Easing.in(Easing.ease),
-      }),
-    ]).start(async () => {
-      const { error } = await supabase
-        .from('settings')
-        .update({ name: name, gender: gender.toLowerCase(), voice: voice.replace(' ', '_').toLowerCase() })
-        .eq('id', session.user.id)
-        .select()
+    const { error, data } = await supabase
+      .from('settings')
+      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping], ai_name: aiName })
+      .eq('id', session.user.id)
+      .select()
 
-      if (error) {
-        // do something
-      }
-    });
+    const settings = convertSQLToSettings(data)
+
+    if (error === null) {
+      Animated.parallel([
+        Animated.timing(outgoingAnim, {
+          toValue: 0,
+          duration: 1000,
+          useNativeDriver: true,
+          easing: Easing.in(Easing.ease),
+        }),
+      ]).start(async () => {
+        setSettings(settings)
+      });
+    } else {
+      console.error(error)
+    }
   };
 
   const steps: Step[] = [
@@ -118,7 +124,11 @@ export const SignupFlow: React.FC<Props> = ({ session }) => {
     },
     {
       key: 'voice',
-      component: () => <VoiceSelector voice={voice} setVoice={setVoice} onFinish={onFinish} />
+      component: () => <VoiceSelector voice={voice} setVoice={setVoice} setAIName={setAIName} onNext={onNext} />
+    },
+    {
+      key: 'aiName',
+      component: () => <AINameSection aiName={aiName} setAIName={setAIName} onFinish={onFinish} />
     },
   ];
 

@@ -1,31 +1,43 @@
 import * as React from 'react';
-import {
-  StyleSheet,
-  View,
-  FlatList,
-  ListRenderItem,
-  Text,
-  ActivityIndicator,
-} from 'react-native';
 import { useEffect } from 'react';
 import {
   AudioSession,
   LiveKitRoom,
-  useTracks,
-  TrackReferenceOrPlaceholder,
-  VideoTrack,
-  isTrackReference,
   registerGlobals,
+  useSpeakingParticipants,
 } from '@livekit/react-native';
 import { Room, Track } from 'livekit-client';
 import useAxios from 'axios-hooks'
 import useFetch from './fetch';
 import { Session } from '@supabase/supabase-js';
 import { supabase } from '../../../lib/supabase';
+import { Button } from 'react-native';
 
 registerGlobals();
 
-export const VoiceInterface = ({ session }: { session: Session }) => {
+type AudioTrackerProps = {
+  setUserAudioLevel: React.Dispatch<React.SetStateAction<number>>
+  setAgentAudioLevel: React.Dispatch<React.SetStateAction<number>>
+}
+
+const AudioTracker: React.FC<AudioTrackerProps> = ({ setUserAudioLevel, setAgentAudioLevel }) => {
+  const participants = useSpeakingParticipants()
+
+  useEffect(() => {
+    console.log(participants)
+
+    const agent = participants.find((speaker) => speaker.isAgent)
+    const user = participants.find((speaker) => !speaker.isAgent)
+
+    setUserAudioLevel(user?.audioLevel ?? 0)
+    setAgentAudioLevel(agent?.audioLevel ?? 0)
+  }, [participants])
+
+  return <></>
+}
+
+export const VoiceInterface: React.FC<AudioTrackerProps & { session: Session }> = ({ session, setUserAudioLevel, setAgentAudioLevel }) => {
+  const [connected, setConnected] = React.useState<boolean>(false)
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
   const [{ data: token, loading, error }] = useAxios(
     { 
@@ -67,11 +79,19 @@ export const VoiceInterface = ({ session }: { session: Session }) => {
   }
 
   return (
-    <LiveKitRoom
-      serverUrl={wsURL}
-      token={token}
-      connect={token !== null ? true : false}
-      audio={true}
-    />
+    <>
+      <Button 
+        title={connected ? 'End Chat' : 'Start Chat'} 
+        onPress={() => setConnected(!connected)}  
+      />
+      <LiveKitRoom
+        serverUrl={wsURL}
+        token={token}
+        connect={token && connected}
+        audio={true}
+      >
+        <AudioTracker setUserAudioLevel={setUserAudioLevel} setAgentAudioLevel={setAgentAudioLevel} />
+      </LiveKitRoom>
+    </>
   );
 };
