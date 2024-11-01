@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from datetime import datetime
 from server.api.analytics import track_sent_message
 from fastapi.responses import JSONResponse
-from server.agent.index import stream_inflection_response
+from server.agent.index import generate_response
 import asyncio
 
 
@@ -31,10 +31,10 @@ class ToolInvocation(BaseModel):
 
 
 class ClientMessage(BaseModel):
+    id: str
     role: str
     content: str
-    experimental_attachments: Optional[List[ClientAttachment]] = None
-    toolInvocations: Optional[List[ToolInvocation]] = None
+    created: str
 
 
 class Request(BaseModel):
@@ -133,7 +133,7 @@ def stream_text(
     agent_response = ""
     message_history = messages
     stream = asyncio.run(
-        stream_inflection_response(
+        generate_response(
             llm=client, conversation=messages,
         )
     )
@@ -161,52 +161,36 @@ def stream_text(
     track_sent_message(
         user_id=user_id,
         chat_id=chat_id,
-        is_intake_session=chat.isIntroSession,
     )
 
 
 @router.post("/api/chat")
 async def handle_chat_data(request: Request, user=Depends(authorize_user)):
     new_user_message = request.messages[-1]
-    chat_id = request.chat_id
     user_id = user["sub"]
-
-    if chat_id is None:
-        raise HTTPException(status_code=400, detail="chat_id is required")
+    chat_id = request.chat_id
 
     prisma = Prisma()
     await prisma.connect()
 
     # confirm the chat exists and belongs to the user
     chat = await prisma.chats.find_unique(
-        where={"id": chat_id, "userId": user_id},
+        where={"id": chat_id},
         include={
             "messages": True,
         },
     )
 
-    # get the last completed chat which will be used to get the previous session form and action plan
-    previous_chat = await prisma.chats.find_first(
-        where={"userId": user_id, "completedSession": True},
-        order={
-            "created": "desc",
-        },
-    )
-
-    # get the intake chat
-    intake_chat = await prisma.chats.find_first(
-        where={"userId": user_id, "isIntroSession": True},
-        order={
-            "created": "desc",
-        },
-    )
+    if chat.userId != user_id: 
+        await prisma.disconnect()
+        raise HTTPException(status_code=403, detail="Unauthorized")
 
     if chat is None:
         await prisma.disconnect()
         raise HTTPException(status_code=404, detail="Chat not found")
 
     openai_messages = convert_to_openai_messages(
-        chat.messages
+        request.messages
     ) + convert_to_openai_messages([new_user_message])
 
     await prisma.disconnect()
@@ -222,12 +206,10 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
             chat_history,
             chat_id,
             chat,
-            previous_chat,
-            intake_chat,
             user_id,
-        )
+        ),
+        media_type="text/event-stream"
     )
-    response.headers["x-vercel-ai-data-stream"] = "v1"
     return response
 
 

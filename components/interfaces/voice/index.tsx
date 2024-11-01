@@ -50,16 +50,6 @@ export const VoiceInterface: React.FC<AudioTrackerProps & { session: Session }> 
   )
 
   useEffect(() => {
-    getCountries();
-  }, []);
-
-  async function getCountries() {
-    const { data } = await supabase.from("user_profiles").select('*').eq('id', session.user.id)
-    console.log('data')
-    console.log(data)
-  }
-
-  useEffect(() => {
     if (loading) {
       return
     }

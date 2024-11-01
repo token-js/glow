@@ -8,13 +8,13 @@ const useFetch = (endpoint: string, ): { data: string | null, loading: boolean, 
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
 
-  const NGROK_URL = process.env.EXPO_PUBLIC_AUTH_SERVER_URL;
+  const baseUrl = process.env.EXPO_PUBLIC_API_URL;
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const response = await axios.get(`${NGROK_URL}${endpoint}`);
+        const response = await axios.get(`${baseUrl}${endpoint}`);
         setData(response.data);
       } catch (err: any) {
         console.error('Error fetching data from Ngrok endpoint:', err);

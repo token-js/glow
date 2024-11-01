@@ -1,5 +1,5 @@
 import React, { useEffect, useRef } from 'react';
-import { View, Animated, StyleSheet } from 'react-native';
+import { View, Animated, StyleSheet, Easing } from 'react-native';
 
 const DOT_SIZE = 8;
 const DOT_MARGIN = 4;
@@ -11,27 +11,33 @@ export const TypingIndicator: React.FC = () => {
   const animation3 = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    const animateDot = (animation: Animated.Value, delay: number) => {
+    const createAnimation = (animation: Animated.Value, delay: number) => {
       Animated.loop(
         Animated.sequence([
+          Animated.delay(delay),
           Animated.timing(animation, {
-            toValue: 1,
+            toValue: -5, // Move up by 5 units
             duration: ANIMATION_DURATION,
             useNativeDriver: true,
+            easing: Easing.inOut(Easing.quad),
           }),
           Animated.timing(animation, {
-            toValue: 0,
+            toValue: 0, // Move back to original position
             duration: ANIMATION_DURATION,
             useNativeDriver: true,
+            easing: Easing.inOut(Easing.quad),
           }),
+          Animated.delay(ANIMATION_DURATION * 2), // Wait for the other dots
         ]),
-        { iterations: -1 }
+        {
+          iterations: -1,
+        }
       ).start();
     };
 
-    animateDot(animation1, 0);
-    animateDot(animation2, ANIMATION_DURATION);
-    animateDot(animation3, ANIMATION_DURATION * 2);
+    createAnimation(animation1, 0);
+    createAnimation(animation2, ANIMATION_DURATION * 1.1);
+    createAnimation(animation3, ANIMATION_DURATION * 2.2);
 
     // Cleanup animations on unmount
     return () => {
@@ -46,19 +52,19 @@ export const TypingIndicator: React.FC = () => {
       <Animated.View
         style={[
           styles.dot,
-          { opacity: animation1 },
+          { transform: [{ translateY: animation1 }] },
         ]}
       />
       <Animated.View
         style={[
           styles.dot,
-          { opacity: animation2 },
+          { transform: [{ translateY: animation2 }] },
         ]}
       />
       <Animated.View
         style={[
           styles.dot,
-          { opacity: animation3 },
+          { transform: [{ translateY: animation3 }] },
         ]}
       />
     </View>
@@ -68,7 +74,7 @@ export const TypingIndicator: React.FC = () => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-end',
     justifyContent: 'center',
     paddingVertical: 10,
   },

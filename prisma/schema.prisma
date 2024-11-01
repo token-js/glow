@@ -41,10 +41,10 @@ model Settings {
 }
 
 model Chats {
-  id               String               @id @default(cuid())
+  id               String               @id @default(uuid())
   created          DateTime             @default(now()) @map("created")
   modified         DateTime             @updatedAt @map("modified")
-  lastMessageTime  DateTime             @map("last_message_time")
+  lastMessageTime  DateTime?            @map("last_message_time")
   userId           String               @db.Uuid @map("user_id")
   user             SupabaseUserProfiles @relation(fields: [userId], references: [id])
   messages         ChatMessages[]
@@ -54,7 +54,7 @@ model Chats {
 }
 
 model ChatMessages {
-  id       String     @id @default(cuid())
+  id       String     @id @default(uuid())
   created  DateTime   @default(now()) @map("created")
   modified DateTime   @updatedAt @map("modified")
   chatId   String     @map("chat_id")
