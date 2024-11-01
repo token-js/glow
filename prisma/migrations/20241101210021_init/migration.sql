@@ -24,7 +24,7 @@ CREATE TABLE "user_profiles" (
 
 -- CreateTable
 CREATE TABLE "settings" (
-    "id" TEXT NOT NULL,
+    "id" UUID NOT NULL,
     "user_id" UUID NOT NULL,
     "name" TEXT,
     "ai_name" TEXT,
@@ -35,10 +35,12 @@ CREATE TABLE "settings" (
 -- CreateTable
 CREATE TABLE "chats" (
     "id" UUID NOT NULL,
-    "user_id" UUID NOT NULL,
     "created" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "modified" TIMESTAMP(3) NOT NULL,
-    "last_message_time" TIMESTAMP(3)
+    "last_message_time" TIMESTAMP(3),
+    "user_id" UUID NOT NULL,
+
+    CONSTRAINT "chats_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -63,10 +65,7 @@ CREATE UNIQUE INDEX "settings_id_key" ON "settings"("id");
 CREATE UNIQUE INDEX "settings_user_id_key" ON "settings"("user_id");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "chats_id_key" ON "chats"("id");
-
--- CreateIndex
-CREATE UNIQUE INDEX "chats_user_id_key" ON "chats"("user_id");
+CREATE UNIQUE INDEX "chats_id_user_id_key" ON "chats"("id", "user_id");
 
 -- AddForeignKey
 ALTER TABLE "user_profiles" ADD CONSTRAINT "user_profiles_id_fkey" FOREIGN KEY ("id") REFERENCES "settings"("user_id") ON DELETE RESTRICT ON UPDATE CASCADE;
