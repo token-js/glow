@@ -33,8 +33,6 @@ class ToolInvocation(BaseModel):
 class ClientMessage(BaseModel):
     role: str
     content: str
-    experimental_attachments: Optional[List[ClientAttachment]] = None
-    toolInvocations: Optional[List[ToolInvocation]] = None
 
 
 class Request(BaseModel):
@@ -167,19 +165,17 @@ def stream_text(
 
 @router.post("/api/chat")
 async def handle_chat_data(request: Request, user=Depends(authorize_user)):
+    print("handing chat")
     new_user_message = request.messages[-1]
-    chat_id = request.chat_id
     user_id = user["sub"]
-
-    if chat_id is None:
-        raise HTTPException(status_code=400, detail="chat_id is required")
+    print(user_id)
 
     prisma = Prisma()
     await prisma.connect()
 
     # confirm the chat exists and belongs to the user
     chat = await prisma.chats.find_unique(
-        where={"id": chat_id, "userId": user_id},
+        where={"id": user_id},
         include={
             "messages": True,
         },

@@ -10,9 +10,12 @@ import {
   KeyboardAvoidingView,
   Platform,
   Keyboard,
+  Pressable,
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { TypingIndicator } from '../../typing-indicator';
+import { useChat } from '../../../hooks/useChat';
+import { Session } from '@supabase/supabase-js';
 
 export type Message = {
   id: string;
@@ -22,11 +25,37 @@ export type Message = {
 };
 
 type Props = {
+  session: Session
   flatListRef: React.RefObject<FlatList<any>>
   messages: Message[]
 }
 
-export const ChatInterface: React.FC<Props> = ({ flatListRef, messages }) => {
+export const ChatInterface: React.FC<Props> = ({ flatListRef, messages, session }) => {
+  const { messages: chatMessages, isStreaming, sendMessage } = useChat({
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${session.access_token}`,
+    }
+  });
+  const response = chatMessages.at(-1)
+
+  return (
+    <View
+      style={{
+        flex: 1,
+        justifyContent: "center",
+        alignItems: "center",
+      }}
+    >
+      <Pressable onPress={() => sendMessage('hello')} disabled={isStreaming}>
+        <Text>Press me to stream!{"\n"}</Text>
+      </Pressable>
+      <Text>Streamed response:{"\n"}</Text>
+      <Text>{response?.text}</Text>
+    </View>
+  );
+
+
   const renderItem = ({ item }: { item: Message }) => {
     if (item.type === 'typing') {
       return (

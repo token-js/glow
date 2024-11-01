@@ -158,19 +158,17 @@ export const HomeScreen: React.FC = () => {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.mainContent}>
+          {session.session && <View style={styles.mainContent}>
             {mode === 'voice' ? (
-              session.session && (
                 <VoiceInterface
                   session={session.session}
                   setUserAudioLevel={setUserAudioLevel}
                   setAgentAudioLevel={setAgentAudioLevel}
                 />
-              )
             ) : (
-              <ChatInterface flatListRef={flatListRef} messages={messages} />
+              <ChatInterface flatListRef={flatListRef} messages={messages} session={session.session} />
             )}
-          </View>
+          </View>}
 
           <View style={styles.bottomContainer}>
             <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
