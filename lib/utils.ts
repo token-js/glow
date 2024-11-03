@@ -13,3 +13,5 @@ export const convertSQLToSettings = (data: any[] | null) => {
     aiName: settings.aiName
   }
 }
+
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
