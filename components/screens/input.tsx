@@ -1,23 +1,27 @@
-import React, { useState, useRef } from 'react';
+// components/chat-input.tsx
+
+import React, { useState, useRef, useEffect } from 'react';
 import {
   View,
   TextInput,
   StyleSheet,
   Platform,
-  Keyboard,
+  TouchableOpacity,
 } from 'react-native';
+import { Ionicons } from '@expo/vector-icons';
+import { ChatInterfaceHandle } from '../interfaces/chat'; // Adjust the path as necessary
 
 type Props = {
-  onSend: (msg: string) => void;
+  chatRef: React.MutableRefObject<ChatInterfaceHandle | null>;
 };
 
-export const ChatInput: React.FC<Props> = ({ onSend }) => {
+export const ChatInput: React.FC<Props> = ({ chatRef }) => {
   const [message, setMessage] = useState('');
   const textInputRef = useRef<TextInput>(null);
 
   const handleSend = () => {
     if (message.trim().length > 0) {
-      onSend(message.trim());
+      chatRef.current?.sendMessage(message.trim());
       setMessage('');
       // Keep the keyboard open
       textInputRef.current?.focus();
@@ -29,7 +33,7 @@ export const ChatInput: React.FC<Props> = ({ onSend }) => {
       <TextInput
         ref={textInputRef}
         style={styles.textInput}
-        placeholder="iMessage"
+        placeholder="Type a message"
         placeholderTextColor="#8E8E93"
         value={message}
         onChangeText={setMessage}
@@ -37,6 +41,9 @@ export const ChatInput: React.FC<Props> = ({ onSend }) => {
         returnKeyType="send"
         onSubmitEditing={handleSend}
       />
+      <TouchableOpacity onPress={handleSend} style={styles.sendButton}>
+        <Ionicons name="send" size={24} color="#007AFF" />
+      </TouchableOpacity>
     </View>
   );
 };
@@ -44,12 +51,12 @@ export const ChatInput: React.FC<Props> = ({ onSend }) => {
 const styles = StyleSheet.create({
   container: {
     flexDirection: 'row',
-    alignItems: 'flex-end',
-    paddingLeft: 8,
+    alignItems: 'center',
     backgroundColor: 'transparent',
     borderWidth: 0,
     shadowColor: 'transparent',
     elevation: 0,
+    height: 50
   },
   textInput: {
     flex: 1,
@@ -64,6 +71,8 @@ const styles = StyleSheet.create({
     color: '#000000',
     backgroundColor: 'transparent',
   },
+  sendButton: {
+    marginLeft: 8,
+    padding: 8,
+  },
 });
-
-export default ChatInput;

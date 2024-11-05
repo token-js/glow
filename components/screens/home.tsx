@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { Ionicons } from '@expo/vector-icons';
-import { ChatInterface, Message } from '../interfaces/chat';
+import { LoadingChatInterface, ChatInterface } from '../interfaces/chat';
 import { VoiceInterface } from '../interfaces/voice';
 import { useSupabaseSession } from '../../lib/hook';
 import { VoiceTextToggleButton } from '../interfaces/voice/toggle';
@@ -40,50 +40,10 @@ export const HomeScreen: React.FC = () => {
   const [userAudioLevel, setUserAudioLevel] = useState<number>(0.0);
 
   const session = useSupabaseSession();
-
   const chatInputOpacity = useRef(new Animated.Value(mode === 'text' ? 1 : 0)).current;
   const waveformOpacity = useRef(new Animated.Value(mode === 'voice' ? 1 : 0)).current;
   const animatedPaddingBottom = useRef(new Animated.Value(0)).current;
-
-
-  const [messages, setMessages] = useState<Message[]>([]);
-  const flatListRef = useRef<FlatList>(null);
-
-  const sendMessage = (inputText: string) => {
-    console.log('sending')
-    console.log(inputText)
-    if (inputText.trim() === '') {
-      return;
-    }
-
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: inputText,
-      sender: 'user',
-      type: 'normal',
-    };
-
-    setMessages((prevMessages) => [...prevMessages, userMessage]);
-
-    // Add typing indicator
-    const typingMessage: Message = {
-      id: (Date.now() + 1).toString(),
-      text: '',
-      type: 'typing',
-    };
-
-    setMessages((prevMessages) => [...prevMessages, typingMessage]);
-
-    // Simulate bot response
-    setTimeout(() => {
-      setMessages((prevMessages) =>
-        prevMessages.map((msg) =>
-          msg.type === 'typing' ? { ...msg, text: 'This is a hardcoded response from the bot.', sender: 'bot', type: 'normal' } : msg
-        )
-      );
-    }, 1500);
-  };
-
+  const chatRef = useRef<any>();
 
   useEffect(() => {
     let keyboardShowListener: any;
@@ -115,7 +75,10 @@ export const HomeScreen: React.FC = () => {
       duration: duration || 300,
       easing: easingFunction,
       useNativeDriver: false,
-    }).start();
+    }).start(() => {
+      // const listRef = chatRef.current?.fetchListRef()
+      // listRef?.current?.scrollToEnd({ animated: true });
+    });
   };
 
   const handleKeyboardHide = (event: any) => {
@@ -149,28 +112,27 @@ export const HomeScreen: React.FC = () => {
 
   return (
     <SafeAreaView style={styles.safeArea}>
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <Animated.View style={[styles.innerContainer, { paddingBottom: animatedPaddingBottom }]}>
+      <Animated.View style={[styles.innerContainer, { paddingBottom: animatedPaddingBottom }]}>
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <>
           <View style={styles.header}>
             <View style={{ flex: 1 }} />
             <TouchableOpacity onPress={() => router.push('/settings')}>
-              <Ionicons name="settings-outline" size={24} color="blue" />
+              <Ionicons name="settings-outline" size={24} color="black" />
             </TouchableOpacity>
           </View>
 
-          <View style={styles.mainContent}>
+          {session.session && <View style={styles.mainContent}>
             {mode === 'voice' ? (
-              session.session && (
                 <VoiceInterface
                   session={session.session}
                   setUserAudioLevel={setUserAudioLevel}
                   setAgentAudioLevel={setAgentAudioLevel}
                 />
-              )
             ) : (
-              <ChatInterface flatListRef={flatListRef} messages={messages} />
+              <LoadingChatInterface ref={chatRef} session={session.session} userId={session.session.user.id} />
             )}
-          </View>
+          </View>}
 
           <View style={styles.bottomContainer}>
             <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
@@ -199,12 +161,13 @@ export const HomeScreen: React.FC = () => {
                 ]}
                 pointerEvents={mode === 'text' ? 'auto' : 'none'}
               >
-                <ChatInput onSend={sendMessage} />
+                <ChatInput chatRef={chatRef} />
               </Animated.View>
             </View>
           </View>
-        </Animated.View>
-      </TouchableWithoutFeedback>
+          </>
+        </TouchableWithoutFeedback>
+      </Animated.View>
     </SafeAreaView>
   );
 };
@@ -216,12 +179,13 @@ const styles = StyleSheet.create({
   innerContainer: {
     flex: 1,
     justifyContent: 'space-between',
-    paddingHorizontal: 10,
+    paddingHorizontal: 0,
   },
   header: {
     flexDirection: 'row',
     alignItems: 'center',
     paddingBottom: 10,
+    paddingHorizontal: 10,
     justifyContent: 'space-between',
   },
   mainContent: {
@@ -233,12 +197,15 @@ const styles = StyleSheet.create({
     width: '100%',
     flexDirection: 'row',
     alignItems: 'center',
+    paddingHorizontal: 10,
   },
   inputWrapper: {
     flex: 1,
     position: 'relative',
-    minHeight: 40,
+    height: 50,
     marginLeft: 8,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
   overlayContainer: {
     position: 'absolute',

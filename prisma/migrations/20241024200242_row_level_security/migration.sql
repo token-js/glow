@@ -48,7 +48,7 @@ CREATE POLICY "Enable user to update their own settings"
 ON "public"."settings"
 AS PERMISSIVE
 FOR UPDATE
-TO public
+TO authenticated
 USING (
   (SELECT auth.uid()) = id
 )

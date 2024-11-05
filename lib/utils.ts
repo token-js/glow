@@ -7,6 +7,7 @@ export const convertSQLToSettings = (data: any[] | null) => {
 
   return {
     id: settings.id,
+    userId: settings.user_id,
     name: settings.name,
     gender: settings.gender,
     voice: settings.voice,

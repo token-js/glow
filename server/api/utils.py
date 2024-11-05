@@ -34,6 +34,7 @@ async def authorize_cron(request: Request):
 
 # Verifies the user JWT token in the authorization header
 def authorize_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBearer())):
+    print("authorizing")
     secret_key = os.environ.get("SUPABASE_JWT_SECRET")
     algo = "HS256"
     try:
@@ -43,6 +44,8 @@ def authorize_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBeare
             algorithms=[algo],
             audience="authenticated",
         )
+        print("got payload")
+        print(payload)
         return payload
     except:
         raise HTTPException(

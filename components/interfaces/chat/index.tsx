@@ -1,83 +1,149 @@
 // components/chat-screen.tsx
-import React, { useState, useEffect, useLayoutEffect, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useImperativeHandle,
+  forwardRef,
+} from 'react';
 import {
   View,
   StyleSheet,
-  TextInput,
   FlatList,
   Text,
-  TouchableOpacity,
-  KeyboardAvoidingView,
-  Platform,
-  Keyboard,
+  ActivityIndicator,
 } from 'react-native';
-import { Ionicons } from '@expo/vector-icons';
+import { Message, useChat } from '../../../hooks/useChat';
+import { QueryData, Session } from '@supabase/supabase-js';
+import { supabase } from '../../../lib/supabase';
+import { Database } from '../../../lib/types/supabase';
 import { TypingIndicator } from '../../typing-indicator';
 
-export type Message = {
-  id: string;
-  text: string;
-  sender?: 'user' | 'bot';
-  type: 'normal' | 'typing';
+type Props = {
+  session: Session;
+  userId: string;
 };
 
-type Props = {
-  flatListRef: React.RefObject<FlatList<any>>
-  messages: Message[]
-}
+// Define the handle type for methods exposed via ref
+export type ChatInterfaceHandle = {
+  sendMessage: (message: string) => void;
+  fetchListRef: () => React.RefObject<FlatList<any>>;
+};
 
-export const ChatInterface: React.FC<Props> = ({ flatListRef, messages }) => {
-  const renderItem = ({ item }: { item: Message }) => {
-    if (item.type === 'typing') {
+// Updated LoadingChatInterface component
+export const LoadingChatInterface = forwardRef<ChatInterfaceHandle, Props>(
+  ({ session, userId }, ref) => {
+    const [chat, setChat] =
+      useState<Database['public']['Tables']['chats']['Row']>();
+    const [initialMessages, setInitialMessages] = useState<Message[]>([]);
+    const flatListRef = useRef<FlatList>(null);
+
+    useEffect(() => {
+      getChat();
+    }, []);
+
+    async function getChat() {
+      const chatWithMessagesQuery = supabase
+        .from('chats')
+        .select(
+          `*, chat_messages (*)`
+        )
+        .eq('user_id', userId);
+      type ChatsWithMessages = QueryData<typeof chatWithMessagesQuery>;
+
+      const { data, error } = await chatWithMessagesQuery;
+
+      if (error) throw error;
+      const chatsWithMessages: ChatsWithMessages = data;
+      const chat = chatsWithMessages.at(-1);
+      setChat(chat);
+
+      const messages = chat?.chat_messages ?? [];
+      setInitialMessages(messages);
+    }
+
+    if (!chat) {
+      return <ActivityIndicator />;
+    } else {
       return (
-        <View style={styles.typingContainer}>
-          <TypingIndicator />
-        </View>
+        <ChatInterface
+          ref={ref}
+          flatListRef={flatListRef}
+          initialMessages={initialMessages}
+          session={session}
+          chatId={chat.id}
+        />
       );
     }
+  }
+);
+
+type ChatInterfaceProps = Omit<Props, 'userId'> & {
+  flatListRef: React.RefObject<FlatList<any>>;
+  initialMessages: Message[];
+  chatId: string;
+};
+
+// Updated ChatInterface component
+export const ChatInterface = forwardRef<ChatInterfaceHandle, ChatInterfaceProps>(
+  ({ flatListRef, initialMessages, session, chatId }, ref) => {
+
+    const { messages: chatMessages, isStreaming, sendMessage } = useChat({
+      initialMessages,
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      chatId,
+    });
+
+    // Expose sendMessage via ref
+    useImperativeHandle(ref, () => ({
+      sendMessage,
+      fetchListRef: () => flatListRef,
+    }));
+
+    const renderItem = ({ item }: { item: Message }) => {
+      return (
+        <View
+          style={[
+            styles.messageContainer,
+            item.role === 'user' ? styles.userMessage : styles.botMessage,
+          ]}
+        >
+          {item.content.length > 0 ? <Text style={styles.messageText}>{item.content}</Text> : <TypingIndicator />}
+        </View>
+      );
+    };
 
     return (
-      <View
-        style={[
-          styles.messageContainer,
-          item.sender === 'user' ? styles.userMessage : styles.botMessage,
-        ]}
-      >
-        <Text style={styles.messageText}>{item.text}</Text>
-      </View>
-    );
-  };
-
-  // Scroll to bottom when messages change
-  useLayoutEffect(() => {
-    if (flatListRef.current && messages.length > 0) {
-      flatListRef.current.scrollToEnd({ animated: true });
-    }
-  }, [messages]);
-
-  return (
-    <KeyboardAvoidingView
-      style={styles.chatContainer}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
-      keyboardVerticalOffset={90}
-    >
       <FlatList
         ref={flatListRef}
-        data={messages}
+        data={[...chatMessages].reverse()}
         renderItem={renderItem}
-        keyExtractor={(item) => item.id}
+        keyExtractor={(item) => item.id.toString()}
         contentContainerStyle={styles.messagesList}
-        onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: true })}
+        onContentSizeChange={() =>
+          flatListRef.current?.scrollToOffset({ animated: true, offset: 0 })
+          // flatListRef.current?.scrollTo({ animated: true })
+        }
+        inverted
         keyboardShouldPersistTaps="handled"
+        style={{
+          width: '100%',
+          height: '100%',
+          flex: 1,
+          overflow: 'scroll'
+        }}
       />
-    </KeyboardAvoidingView>
-  );
-};
+    );
+  }
+);
 
 const styles = StyleSheet.create({
   chatContainer: {
     flex: 1,
-    width: '100%'
+    width: '100%',
   },
   circleContainer: {
     marginTop: 50,
