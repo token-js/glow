@@ -77,8 +77,9 @@ export const estimateTrainingCost = (dataset: TrainingDataset, model: TiktokenMo
   }
 
   let numTokens = 0;
+  const encoding = encoding_for_model(model)
   for (const { messages } of dataset) {
-    numTokens += estimateTokensForMessages(messages, model);
+    numTokens += estimateTokensForMessages(messages, encoding);
   }
 
   const estimatedCost = (baseCostPerMillionTokens / 1e6) * numTokens * numEpochs;
@@ -94,6 +95,7 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
     throw new Error(`Training file has ${dataset.length} example(s), but must have at least 10 examples`)
   }
 
+  const encoding = encoding_for_model(model)
   for (const ex of dataset) {
     if (typeof ex !== 'object' || Array.isArray(ex)) {
       formatErrors["data_type"] = (formatErrors["data_type"] || 0) + 1;
@@ -106,7 +108,7 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
       continue;
     }
 
-    const numTokens = estimateTokensForMessages(messages, model);
+    const numTokens = estimateTokensForMessages(messages, encoding);
     const {fineTuningMaxTokens} = MODEL_FINE_TUNING_INFO[model];
     // Check if the example is greater than the max token size for a fine-tuning example. This is
     // necessary because of the following limitation in OpenAI's fine-tuning process: "Examples
@@ -285,6 +287,7 @@ export const getNextTODOStatus = (currentStatus: TODOStatus): TODOStatus => {
   throw new Error(`TODO(docs)`)
 };
 
+// TODO(docs): we use binary search because...
 export const getFinalMessagesByTokenLimit = (
   messages: TODOMessage[],
   model: TiktokenModel,
@@ -292,19 +295,40 @@ export const getFinalMessagesByTokenLimit = (
 ): TODOMessage[] => {
   const maxContextWindow = CONTEXT_WINDOWS[model];
   if (tokenLimit > maxContextWindow) {
-    throw new Error(`TODO: Token limit exceeds the maximum context window for the model.`);
+    throw new Error(`TODO(docs): Token limit exceeds the maximum context window for the model.`);
   }
 
-  const messagesCopy = structuredClone(messages)
-  let tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
-  while (tokensCount > tokenLimit) {
-    messagesCopy.shift(); // Removes the first element
-    tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
+  const encoding = encoding_for_model(model);
+  const messagesCopy = structuredClone(messages);
+
+  let low = 0;
+  let high = messagesCopy.length;
+  let ans = messagesCopy.length;
+
+  const isValid = (startIndex: number): boolean => {
+    const currentMessages = messagesCopy.slice(startIndex);
+    const tokensCount = estimateTokensForMessages(
+      currentMessages.map(toChatCompletionMessageParam),
+      encoding
+    );
+    return tokensCount <= tokenLimit;
+  };
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+
+    if (isValid(mid)) {
+      ans = mid;
+      high = mid - 1; // Try to find a smaller starting index
+    } else {
+      low = mid + 1; // Need to remove more messages from the start
+    }
   }
 
-  return messagesCopy;
+  return messagesCopy.slice(ans);
 };
 
+// TODO(docs): we use binary search because...
 export const getInitialMessagesByTokenLimit = (
   messages: TODOMessage[],
   model: TiktokenModel,
@@ -312,17 +336,37 @@ export const getInitialMessagesByTokenLimit = (
 ): TODOMessage[] => {
   const maxContextWindow = CONTEXT_WINDOWS[model];
   if (tokenLimit > maxContextWindow) {
-    throw new Error(`TODO: Token limit exceeds the maximum context window for the model.`);
+    throw new Error(`TODO(docs): Token limit exceeds the maximum context window for the model.`);
   }
 
-  const messagesCopy = structuredClone(messages)
-  let tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
-  while (tokensCount > tokenLimit) {
-    messagesCopy.pop(); // Removes the last element
-    tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
+  const encoding = encoding_for_model(model);
+  const messagesCopy = structuredClone(messages);
+
+  let low = 0;
+  let high = messagesCopy.length;
+  let ans = 0;
+
+  const isValid = (mid: number): boolean => {
+    const currentMessages = messagesCopy.slice(0, mid);
+    const tokensCount = estimateTokensForMessages(
+      currentMessages.map(toChatCompletionMessageParam),
+      encoding
+    );
+    return tokensCount <= tokenLimit;
+  };
+
+  while (low <= high) {
+    const mid = Math.floor((low + high) / 2);
+
+    if (isValid(mid)) {
+      ans = mid;
+      low = mid + 1;
+    } else {
+      high = mid - 1;
+    }
   }
 
-  return messagesCopy;
+  return messagesCopy.slice(0, ans);
 };
 
 // TODO(later-later): rm if unused
@@ -338,35 +382,21 @@ export const toChatCompletionMessageParam = (message: TODOMessage): ChatCompleti
 // TODO(docs): explain rationale for cache
 export const estimateTokensForMessages = (
   messages: ChatCompletionMessageParam[],
-  model: TiktokenModel
+  encoding: Tiktoken
 ): number => {
-  const encoding = encoding_for_model(model);
   const tokensPerMessage = 3;
   const tokensPerName = 1;
   let numTokens = 0;
 
-  let cache: Record<string, number> = {}
-  const cacheFilePath = `.cache/${model}.json`
-  if (existsSync(cacheFilePath)) {
-    cache = JSON.parse(readFileSync(cacheFilePath, 'utf-8'))
-  } else {
-    mkdirSync(`.cache`, { recursive: true});
-  }
-
   for (const message of messages) {
     numTokens += tokensPerMessage;
     for (const [key, value] of Object.entries(message)) {
-      const hash = sha256()
-      if ()
       numTokens += encoding.encode(value).length;
       if (key === "name") {
         numTokens += tokensPerName;
       }
     }
-    encoding.free()
   }
-
-  writeFileSync(cacheFilePath, JSON.stringify(cache), 'utf-8')
 
   numTokens += 3; // Every reply is primed with <|start|>assistant<|message|>
   return numTokens;
@@ -374,11 +404,6 @@ export const estimateTokensForMessages = (
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const sha256 = (input: string): string => {
-  const hash = createHash('sha256');
-  hash.update(input);
-  return hash.digest('hex');
-};
-
 // TODO(later-later): in production, make sure you don't call tiktoken's encoding function on the
-// whole chat history. it's very, very slow.
+// whole chat history. it's very, very slow. actually, just make sure not to use
+// `encoding_for_model`.

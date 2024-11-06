@@ -53,6 +53,25 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
   });
 })()
 
+// TODO(end): ticket: Clean Pi data more thoroughly
+// - Censored profanity sent from user messages. (We currently only remove censorship from assistant
+//   messages)
+// - Bad transcription (already defined as `WrongTranscription`): Convert `content` into new string
+//   - Pre-context: ~10 standard messages worth of tokens.
+//   - Include chain of thought.
+//   - Prompt: User messages are transcribed from audio. Fix words and phrases in the user message
+//     that were transcribed to have a different meaning than the user intended. You must NOT make
+//     any changes to the message aside from this task.
+//   - Post-context: ~10 standard messages worth of tokens.
+//   - Few-shot examples: Don't use the following examples directly, but take inspiration from them:
+//     - Replace: "pants" -> "puns"
+//     - Replace: "coupon" -> "couple"
+//     - "It was. It was" -> "It wasn't".
+//   - Misc:
+//     - Only do this on user messages, since assistant messages aren't transcribed.
+//     - After each LLM call, you can validate that only the asterisks in the original string are
+//       converted, and that the rest of the string stays the same.
+
 // TODO(end): Ticket: Pi uses language that an AI friend wouldn't say.
 //
 // Examples from the chat with Roman:
@@ -333,24 +352,3 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
 //     - TODO(docs): Explain why we can't simply split by the day according to the `sent_at` field
 //       in the exported Pi data. See, for example, `"2024-08-23T09:41:23.722"`. Notice how there
 //       was a previous conversation at 1am that day.
-//
-// - Bad transcription: Convert `content` into new string
-//   - Pre-context: ~10 standard messages worth of tokens.
-//   - Include chain of thought.
-//   - Prompt: User messages are transcribed from audio. Fix words and phrases in the user message
-//     that were transcribed to have a different meaning than the user intended. You must NOT make
-//     any changes to the message aside from this task.
-//   - Post-context: ~10 standard messages worth of tokens.
-//   - Few-shot examples: Don't use the following examples directly, but take inspiration from them:
-//     - Replace: "pants" -> "puns"
-//     - Replace: "coupon" -> "couple"
-//     - "It was. It was" -> "It wasn't".
-//   - Misc:
-//     - Only do this on user messages, since assistant messages aren't transcribed.
-//     - After each LLM call, you can validate that only the asterisks in the original string are
-//       converted, and that the rest of the string stays the same.
-// 
-// - Censored profanity: Convert `content` into new string
-//   - Misc:
-//     - After each LLM call, you can validate that only the asterisks in the original string are
-//       converted, and that the rest of the string stays the same.

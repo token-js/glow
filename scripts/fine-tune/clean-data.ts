@@ -20,7 +20,7 @@ if (!cleanDataFilePath || !piDataFilePath) {
 const cleanCensoredProfanity = async (messages: Array<TODOMessage>): Promise<Array<TODOMessage>> => {
   const openai = new OpenAI();
 
-  const model: TiktokenModel = 'gpt-4o-mini-2024-07-18'
+  const model: TiktokenModel = 'gpt-4o-2024-08-06'
   const contextSize = 10 * ESTIMATED_TOKENS_PER_MESSAGE
   
   const messagesCopy = structuredClone(messages)
@@ -34,51 +34,62 @@ const cleanCensoredProfanity = async (messages: Array<TODOMessage>): Promise<Arr
     if (message.role !== 'assistant') {
       continue
     }
+    // TODO(docs)
+    if (!message.content.includes('*')) {
+      continue
+    }
 
     const messagesBefore = messagesCopy.slice(0, i)
     const messagesAfter = messagesCopy.slice(i + 1)
     const truncatedMessagesBefore = getFinalMessagesByTokenLimit(messagesBefore, model, contextSize)
     const truncatedMessagesAfter = getInitialMessagesByTokenLimit(messagesAfter, model, contextSize)
 
-    const systemPrompt = `You are an AI assistant whose goal is to replace censored profanity in only the next message sent by the ${message.role} role, which we'll call the "target message". You must respond with the exact same target message, except you must replace each instance of profanity in this message with the underlying word or phrase. Your response must NOT modify any other part of the target message for any reason. Asterisks are used to censor the profanity. Use the context of the conversation and the number of asterisks to determine the correct word or phrase to replace the asterisks. If you aren't sure what the correct word or phrase is, use your best guess.
+    const mainSystemPrompt = `You are an AI assistant whose goal is to replace censored profanity in the target message identified in an earlier system prompt. Asterisks are used to censor the profanity in the target message. Use the context of the conversation and the number of asterisks to determine the correct word or phrase to replace the asterisks. If you aren't sure what the correct word or phrase is, use your best guess.
 
-  You must respond with a JSON that has two fields: Your reasoning for replacing the asterisks with the chosen words, and the new target message.
+Rules:
+- You must respond with the exact same target message, except you must replace each instance of profanity in the target message with the underlying word or phrase.
+- You must respond with the entire target message; do not remove any text from it, including even sentences that have no relevance to the profanity.
+- The profanity must be vulgar, e.g. "fucking", not milder terms like "screwing".
 
-  Examples are below, delimited by <example> tags. The :
-  <example>
-  Input messages:
-    User: Hey, what's up?
-    Assistant: Not much.
-    Target Message (user): Son of a *****!
-    Assistant: What's wrong?
-    Message: I stubbed my toe, and it really hurt.
-  Your response:
-  {
-    "reasoning": "The phrase 'son of a bitch' is a common expression used to convey frustration or pain, which aligns with the user's explanation of having stubbed their toe and experiencing hurt. The context provided by the AI's concern indicates the user is expressing strong emotion. There are five asterisks in the target message, and five letters in the word 'bitch'.",
-    "targetMessage": "Son of a bitch!"
-  }
-  </example>
+You must respond with a JSON that has two fields:
+- \`reasoning\`: Your reasoning for replacing each asterisk with your chosen word.
+- \`targetMessage\`: The new target message with profanity replaced.
 
-  <example>
-  Input messages:
-    User: I've had it with my coworker.
-    Assistant: What happened?
-    Target Message (user): uhh, he called me a ******* ******* in front of everyone!
-    Assistant: That's really unprofessional. Are you okay?
-    Message: Yes, but it was embarrassing and uncalled for.
-  Your response:
-  {
-    "reasoning": "The words 'fucking asshole' are often used to describe someone who behaves rudely or disrespectfully, especially when they insult someone publicly. The context indicates the user felt embarrassed and upset by the coworker's behavior. There are seven asterisks for the first word and seven for the second, corresponding to the word lengths of 'fucking' and 'asshole'.",
-    "targetMessage": "uhh, he called me a fucking asshole in front of everyone!"
-  }
-  </example>
+Examples are below, delimited by <example> tags:
+<example>
+Input messages:
+  User: Hey, what's up?
+  Assistant: Not much.
+  Target Message (user): Son of a *****!
+  Assistant: What's wrong?
+  Message: I stubbed my toe, and it really hurt.
+Your response:
+{
+  "reasoning": "The phrase 'son of a bitch' is a common expression used to convey frustration or pain, which aligns with the user's explanation of having stubbed their toe and experiencing hurt. The context provided by the AI's concern indicates the user is expressing strong emotion. There are five asterisks in the target message, and five letters in the word 'bitch'. All of the original text from the target message is included as instructed.",
+  "targetMessage": "Son of a bitch!"
+}
+</example>
+
+<example>
+Input messages:
+  User: I've had it with my coworker.
+  Assistant: What happened?
+  Target Message (user): uhh, he called me a ******* ******* in front of everyone! can you believ it?
+  Assistant: That's really unprofessional. Are you okay?
+  Message: Yes, but it was embarrassing and uncalled for.
+Your response:
+{
+  "reasoning": "The words 'fucking asshole' are often used to describe someone who behaves rudely or disrespectfully, especially when they insult someone publicly. The context indicates the user felt embarrassed and upset by the coworker's behavior. There are seven asterisks for the first word and seven for the second, corresponding to the word lengths of 'fucking' and 'asshole'. All of the original text from the target message is included as instructed.",
+  "targetMessage": "uhh, he called me a fucking asshole in front of everyone! can you believ it?"
+}
+</example>
     `
 
     const jsonSchema = {
       "name": "profanity_replacement",
       "description": "Replaces censored profanity in a target message with appropriate words based on context.",
       "strict": true,
-      "parameters": {
+      "schema": {
         "type": "object",
         "properties": {
           "reasoning": {
@@ -95,17 +106,18 @@ const cleanCensoredProfanity = async (messages: Array<TODOMessage>): Promise<Arr
       }
     }
 
-    const systemMessage: ChatCompletionMessageParam = {role: "system", content: systemPrompt}
-    const messages: Array<ChatCompletionMessageParam> = [
+    const formatted: Array<ChatCompletionMessageParam> = [
       ...truncatedMessagesBefore,
-      systemMessage,
+      {role: "system", content: `The next message is the target message. Remember its content.`},
       message,
-      ...truncatedMessagesAfter
+      {role: "system", content: "The system message has ended."},
+      ...truncatedMessagesAfter,
+      {role: "system", content: mainSystemPrompt},
     ]
 
     const response = await openai.chat.completions.create({
       model,
-      messages: messages,
+      messages: formatted,
       response_format: { type: "json_schema", json_schema: jsonSchema }
     })
 
@@ -161,7 +173,7 @@ Final message: "${targetMessage}"`
       // TODO: Handle CensoredProfanity status
       currentMessages = await cleanCensoredProfanity(currentMessages)
     } else if (currentStatus === TODOStatus.WrongTranscription) {
-      // TODO: Handle WrongTranscription status
+      // Not implemented.
     } else if (currentStatus === TODOStatus.NewConversations) {
       // TODO: Handle NewConversations status
     } else if (currentStatus === TODOStatus.NegativeUserResponses) {
