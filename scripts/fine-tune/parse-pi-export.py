@@ -1,3 +1,4 @@
+from datetime import datetime
 import json
 from pathlib import Path
 import uuid
@@ -42,9 +43,11 @@ entities = [
 ]
 
 raw_data_path = Path('pi-export.json')
-output_path = Path('scripts/fine-tune/data/pi.jsonl')
 
 data = json.loads(raw_data_path.read_text())
+
+def make_file_name(timestamp: str, suffix: str, extension: str) -> str:
+    return f"{timestamp}_{suffix}.{extension}"
 
 if 'user_data' in data and 'messages' in data['user_data']:
     messages = data['user_data']['messages']
@@ -57,9 +60,15 @@ if 'user_data' in data and 'messages' in data['user_data']:
           # sensitive data, consider automating the process.
           raise ValueError("Sensitive information detected in one or more messages.")
 
-    with output_path.open('a') as output_file:
-        data = {'id': str(uuid.uuid4()), 'messages': messages}
-        json.dump(data, output_file)
+    now = datetime.now()
+    timestamp = now.strftime("%Y%m%d_%H%M%S")
+    clean_data_file_path = Path(f"scripts/fine-tune/data/{make_file_name(timestamp, 'clean', 'jsonl')}")
+    pi_data_file_path = Path(f"scripts/fine-tune/data/{make_file_name(timestamp, 'pi', 'jsonl')}")
+    with pi_data_file_path.open('w') as output_file:
+        json.dump({'messages': messages}, output_file)
         output_file.write('\n')
+
+    print(f'CLEAN_DATA_FILE_PATH={clean_data_file_path}')
+    print(f'PI_DATA_FILE_PATH={pi_data_file_path}')
 else:
     raise ValueError("Invalid data format in pi-export.json")

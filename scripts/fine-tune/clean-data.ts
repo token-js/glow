@@ -1,23 +1,29 @@
 import { ChatCompletionMessageParam } from "openai/resources";
 import { ExportedPiMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus } from "../types";
-import { appendJsonObjectToJsonl, getCurrentTODOStatus, getNextTODOStatus, makeTODO, readJsonLinesFile, toChatCompletionMessageParam, getFinalMessagesByTokenLimit, getInitialMessagesByTokenLimit, replaceJsonLineAt } from "../utils"
+import { getCurrentTODOStatus, getNextTODOStatus, makeTODO, toChatCompletionMessageParam, getFinalMessagesByTokenLimit, getInitialMessagesByTokenLimit } from "../utils"
 import { TiktokenModel } from "tiktoken";
 import { ESTIMATED_TOKENS_PER_MESSAGE } from "../constants";
 import OpenAI from "openai";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 
-
-const cleanDataFilePath = 'scripts/fine-tune/data/clean.jsonl'
+const cleanDataFilePath = process.env.CLEAN_DATA_FILE_PATH;
+const piDataFilePath = process.env.PI_DATA_FILE_PATH
+if (!cleanDataFilePath || !piDataFilePath) {
+  throw new Error(`TODO(docs)`)
+}
 
 // TODO(later): consider using gpt 4o mini for speed and cost for the cleaning methods that don't
 // require a large amount of context or intelligence.
 
-const cleanCensoredProfanity = async (data: TODO, lineIndex: number): Promise<Array<TODOMessage>> => {
+// TODO(later): create a bash script that orchestrates the entire flow
+
+const cleanCensoredProfanity = async (messages: Array<TODOMessage>): Promise<Array<TODOMessage>> => {
   const openai = new OpenAI();
 
   const model: TiktokenModel = 'gpt-4o-mini-2024-07-18'
   const contextSize = 10 * ESTIMATED_TOKENS_PER_MESSAGE
   
-  const messagesCopy = structuredClone(data.messages)
+  const messagesCopy = structuredClone(messages)
   for (let i = 0; i < messagesCopy.length; i++) {
     const message = messagesCopy[i]
     if (message.status !== TODOStatus.CensoredProfanity) {
@@ -29,8 +35,8 @@ const cleanCensoredProfanity = async (data: TODO, lineIndex: number): Promise<Ar
       continue
     }
 
-    const messagesBefore = messagesCopy.slice(0, i).map(toChatCompletionMessageParam)
-    const messagesAfter = messagesCopy.slice(i + 1).map(toChatCompletionMessageParam)
+    const messagesBefore = messagesCopy.slice(0, i)
+    const messagesAfter = messagesCopy.slice(i + 1)
     const truncatedMessagesBefore = getFinalMessagesByTokenLimit(messagesBefore, model, contextSize)
     const truncatedMessagesAfter = getInitialMessagesByTokenLimit(messagesAfter, model, contextSize)
 
@@ -128,47 +134,45 @@ Final message: "${targetMessage}"`
     message.content = targetMessage;
     message.status = getNextTODOStatus(TODOStatus.CensoredProfanity)
 
-    const newData: TODO = {id: data.id, messages: messagesCopy}
-    await replaceJsonLineAt(cleanDataFilePath, lineIndex, newData)
-    
+    const newData: TODO = {messages: messagesCopy}
+    writeFileSync(cleanDataFilePath, JSON.stringify(newData), 'utf-8')
   }
 
   return messagesCopy
 }
 
 ;(async () => {
-  const piArray: Array<ParsedExportedPiData> = await readJsonLinesFile('scripts/fine-tune/data/pi.jsonl')
-  const cleanArray: Array<TODO> = await readJsonLinesFile('scripts/fine-tune/data/clean.jsonl')
-  for (const piEntry of piArray) {
-    let cleanEntry = cleanArray.find(e => e.id === piEntry.id)
-    if (cleanEntry === undefined) {
-      cleanEntry = makeTODO(piEntry)
-      await appendJsonObjectToJsonl(cleanDataFilePath, cleanEntry)
-    }
+  const piData: ParsedExportedPiData = JSON.parse(readFileSync(piDataFilePath, 'utf-8'))
+  let cleanData: TODO
+  if (existsSync(cleanDataFilePath)) {
+    cleanData = JSON.parse(readFileSync(cleanDataFilePath, 'utf-8'))
+  } else {
+    cleanData = makeTODO(piData, )
+    writeFileSync(cleanDataFilePath, JSON.stringify(cleanData), 'utf-8')
+  }
 
-    // TODO(later): each handler should do `structuredClone` on the input `messages`
+  // TODO(later): each handler should do `structuredClone` on the input `messages`
 
-    let currentStatus = getCurrentTODOStatus(cleanEntry.messages)
-    let currentMessages = cleanEntry.messages
-    while (currentStatus !== TODOStatus.Done) {
-      console.log(`Current status: ${currentStatus}`)
-      if (currentStatus === TODOStatus.CensoredProfanity) {
-        // TODO: Handle CensoredProfanity status
-        currentMessages = await cleanCensoredProfanity(currentMessages)
-      } else if (currentStatus === TODOStatus.WrongTranscription) {
-        // TODO: Handle WrongTranscription status
-      } else if (currentStatus === TODOStatus.NewConversations) {
-        // TODO: Handle NewConversations status
-      } else if (currentStatus === TODOStatus.NegativeUserResponses) {
-        // TODO: Handle NegativeUserResponses status
-      } else if (currentStatus === TODOStatus.RepeatedStatements) {
-        // TODO: Handle RepeatedStatements status
-      } else if (currentStatus === TODOStatus.Hallucinations) {
-        // TODO: Handle Hallucinations status
-      } else {
-        throw new Error(`Unknown status: ${currentStatus}`)
-      }
-      currentStatus = getNextTODOStatus(currentStatus)
+  let currentStatus = getCurrentTODOStatus(cleanData.messages)
+  let currentMessages = cleanData.messages
+  while (currentStatus !== TODOStatus.Done) {
+    console.log(`Current status: ${currentStatus}`)
+    if (currentStatus === TODOStatus.CensoredProfanity) {
+      // TODO: Handle CensoredProfanity status
+      currentMessages = await cleanCensoredProfanity(currentMessages)
+    } else if (currentStatus === TODOStatus.WrongTranscription) {
+      // TODO: Handle WrongTranscription status
+    } else if (currentStatus === TODOStatus.NewConversations) {
+      // TODO: Handle NewConversations status
+    } else if (currentStatus === TODOStatus.NegativeUserResponses) {
+      // TODO: Handle NegativeUserResponses status
+    } else if (currentStatus === TODOStatus.RepeatedStatements) {
+      // TODO: Handle RepeatedStatements status
+    } else if (currentStatus === TODOStatus.Hallucinations) {
+      // TODO: Handle Hallucinations status
+    } else {
+      throw new Error(`Unknown status: ${currentStatus}`)
     }
+    currentStatus = getNextTODOStatus(currentStatus)
   }
 })()

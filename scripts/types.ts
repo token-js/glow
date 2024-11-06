@@ -29,7 +29,6 @@ export type RawExportedPiData = {
 
 export type ParsedExportedPiData = {
   messages: Array<ExportedPiMessage>
-  id: string
 }
 
 // TODO(later-later): before fine-tuning, check that all of the messages in `clean.jsonl` have a `Done` status.
@@ -47,13 +46,15 @@ export enum TODOStatus {
   Done = "Done"
 }
 
+// TODO(docs): we store the `tokens` field because it's very slow to calculate the number of tokens
+// of a large array many times, which we'd need to do in order to truncate the message history.
 export type TODOMessage = {
   role: 'assistant' | 'user' | 'system'
   content: string
   status: TODOStatus
+  tokens: number
 }
 
 export type TODO = {
-  id: string
   messages: Array<TODOMessage>
 }

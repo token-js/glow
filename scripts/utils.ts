@@ -1,11 +1,10 @@
 import { ChatCompletionAssistantMessageParam, ChatCompletionMessageParam, ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam, FileObject } from "openai/resources";
-import { TiktokenModel } from "tiktoken";
+import { encoding_for_model, Tiktoken, TiktokenModel } from "tiktoken";
 import { CONTEXT_WINDOWS, MODEL_FINE_TUNING_INFO, todoStatusPriorityMap } from "./constants";
 import OpenAI, { toFile } from "openai";
 import { ExportedPiMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus, TrainingDataset } from "./types";
 import { createReadStream, readFile, readFileSync, writeFileSync } from "fs";
 import * as readline from 'readline';
-import { estimateTokensForOpenAIModel } from "../lib/utils";
 import { appendFile } from "fs/promises";
 
 export const getInflectionResponse = async (
@@ -78,7 +77,7 @@ export const estimateTrainingCost = (dataset: TrainingDataset, model: TiktokenMo
 
   let numTokens = 0;
   for (const { messages } of dataset) {
-    numTokens += estimateTokensForOpenAIModel(messages, model);
+    numTokens += estimateTokensForMessages(messages, model);
   }
 
   const estimatedCost = (baseCostPerMillionTokens / 1e6) * numTokens * numEpochs;
@@ -106,7 +105,7 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
       continue;
     }
 
-    const numTokens = estimateTokensForOpenAIModel(messages, model);
+    const numTokens = estimateTokensForMessages(messages, model);
     const {fineTuningMaxTokens} = MODEL_FINE_TUNING_INFO[model];
     // Check if the example is greater than the max token size for a fine-tuning example. This is
     // necessary because of the following limitation in OpenAI's fine-tuning process: "Examples
@@ -161,6 +160,7 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
   }
 }
 
+// TODO(later-later): name
 export const makeFileName = (baseName: string, extension: string): string => {
   const now = new Date();
   const year = now.getFullYear();
@@ -216,58 +216,10 @@ export const convertToChatCompletionMessageParams = (
     }
 }
 
-export const readJsonLinesFile = (filePath: string): Promise<any[]> => {
-  return new Promise((resolve, reject) => {
-    const jsonObjects: any[] = [];
-    const rl = readline.createInterface({
-      input: createReadStream(filePath),
-      crlfDelay: Infinity
-    });
-
-    rl.on('line', line => {
-      try {
-        if (line.trim()) {
-          const jsonObject = JSON.parse(line);
-          jsonObjects.push(jsonObject);
-        }
-      } catch (error) {
-        rl.close(); // Stop processing further lines
-        reject(error);
-      }
-    });
-
-    rl.on('close', () => resolve(jsonObjects));
-    rl.on('error', reject);
-  });
-};
-
-
-export const countJsonLines = async (filePath: string): Promise<number> => {
-  const fileStream = createReadStream(filePath);
-  const rl = readline.createInterface({
-      input: fileStream,
-      crlfDelay: Infinity,
-  });
-
-  let count = 0;
-
-  for await (const line of rl) {
-      try {
-          const parsedLine = JSON.parse(line);
-          if (typeof parsedLine === 'object' && parsedLine !== null) {
-              count++;
-          }
-      } catch (error) {
-          // If JSON.parse fails, it's not a valid JSON object; ignore this line
-      }
-  }
-
-  return count;
-};
-
 // TODO(later-later): rename
 export const makeTODO = (
-  pi: ParsedExportedPiData
+  pi: ParsedExportedPiData,
+  model: TiktokenModel
 ): TODO => {
   const getInitialStatus = (): TODOStatus => {
     let lowestStatus: TODOStatus | null = null;
@@ -300,19 +252,15 @@ export const makeTODO = (
 
 
     const initialStatus = getInitialStatus()
-    return {role, content: piMessage.text, status: initialStatus}
+    const openaiMessage: ChatCompletionMessageParam = {role, content: piMessage.text}
+    const tokens = estimateTokensForMessageParam(openaiMessage, model)
+    return {role, content: piMessage.text, status: initialStatus, tokens}
   }))
 
   return {
-    id: pi.id,
     messages: messages
   }
 }
-
-export const appendJsonObjectToJsonl = async (filePath: string, jsonObject: Record<string, any>): Promise<void> => {
-  const jsonString = JSON.stringify(jsonObject);
-  await appendFile(filePath, `${jsonString}\n`, 'utf8');
-};
 
 // TODO(later-later): rename
 export const getCurrentTODOStatus = (messages: Array<TODOMessage>): TODOStatus => {
@@ -339,46 +287,54 @@ export const getNextTODOStatus = (currentStatus: TODOStatus): TODOStatus => {
   throw new Error(`TODO(docs)`)
 };
 
+const getTokensForTODOMessageArray = (
+  messages: Array<TODOMessage>
+): number => {
+  const sum = messages.reduce((totalTokens, message) => totalTokens + message.tokens, 0);
+  return sum + 3 // Every reply is primed with <|start|>assistant<|message|>
+}
+
 export const getFinalMessagesByTokenLimit = (
-  conversation: ChatCompletionMessageParam[],
+  conversation: TODOMessage[],
   model: TiktokenModel,
   tokenLimit: number
-): ChatCompletionMessageParam[] => {
-  const maxContextWindow = CONTEXT_WINDOWS[model]
+): TODOMessage[] => {
+  const maxContextWindow = CONTEXT_WINDOWS[model];
   if (tokenLimit > maxContextWindow) {
-    throw new Error(`TODO(docs)`)
+    throw new Error(`TODO: Token limit exceeds the maximum context window for the model.`);
   }
 
-  const conversationCopy = structuredClone(conversation)
-  let tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+  const conversationCopy = structuredClone(conversation);
+  let tokensCount = getTokensForTODOMessageArray(conversationCopy);
   while (tokensCount > tokenLimit) {
     conversationCopy.shift(); // Removes the first element
-    tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+    tokensCount = getTokensForTODOMessageArray(conversationCopy);
   }
 
   return conversationCopy;
 };
 
 export const getInitialMessagesByTokenLimit = (
-  conversation: ChatCompletionMessageParam[],
+  conversation: TODOMessage[],
   model: TiktokenModel,
   tokenLimit: number
-): ChatCompletionMessageParam[] => {
+): TODOMessage[] => {
   const maxContextWindow = CONTEXT_WINDOWS[model];
   if (tokenLimit > maxContextWindow) {
-    throw new Error(`TODO(docs)`);
+    throw new Error(`TODO: Token limit exceeds the maximum context window for the model.`);
   }
 
   const conversationCopy = structuredClone(conversation);
-  let tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+  let tokensCount = getTokensForTODOMessageArray(conversationCopy);
   while (tokensCount > tokenLimit) {
     conversationCopy.pop(); // Removes the last element
-    tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+    tokensCount = getTokensForTODOMessageArray(conversationCopy);
   }
 
   return conversationCopy;
 };
 
+// TODO(later-later): rm if unused
 export const toChatCompletionMessageParam = (message: TODOMessage): ChatCompletionAssistantMessageParam | ChatCompletionUserMessageParam | ChatCompletionSystemMessageParam => {
   return {
     role: message.role,
@@ -386,37 +342,39 @@ export const toChatCompletionMessageParam = (message: TODOMessage): ChatCompleti
   }
 }
 
-export const replaceJsonLineAt = async (
-  fileName: string,
-  lineIndex: number,
-  content: Record<string, any>
-): Promise<void> => {
-  const rl = readline.createInterface({
-    input: createReadStream(fileName),
-    crlfDelay: Infinity
-  });
-
-  let currentLineIndex = 0;
-  const updatedLines: string[] = [];
-  let lineReplaced = false;
-  const newContent = JSON.stringify(content);
-
-  for await (const line of rl) {
-    if (currentLineIndex === lineIndex) {
-      updatedLines.push(newContent);
-      lineReplaced = true;
-    } else {
-      updatedLines.push(line);
+// Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
+const estimateTokensForMessageParam = (
+  message: ChatCompletionMessageParam,
+  encoding: Tiktoken
+): number => {
+  // TODO(later): create a type predicate that throws an error for superset types of
+  // ChatCompletionMessageParam.
+  const tokensPerName = 1;
+  let numTokens = 3
+  for (const [key, value] of Object.entries(message)) {
+    numTokens += encoding.encode(value).length;
+    if (key === "name") {
+      numTokens += tokensPerName;
     }
-    currentLineIndex++;
+  }
+  
+  return numTokens
+}
+
+// Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
+export const estimateTokensForMessages = (
+  messages: ChatCompletionMessageParam[],
+  model: TiktokenModel
+): number => {
+  let numTokens = 0;
+
+  const encoding = encoding_for_model(model);
+  for (const message of messages) {
+    numTokens += estimateTokensForMessageParam(message, encoding)
   }
 
-  rl.close();
-
-  if (!lineReplaced) {
-    throw new Error(`Invalid lineIndex: ${lineIndex}`);
-  }
-
-  // Write the updated lines back to the same file
-  writeFileSync(fileName, updatedLines.join('\n'), 'utf-8');
+  numTokens += 3; // Every reply is primed with <|start|>assistant<|message|>
+  return numTokens;
 };
+
+export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
