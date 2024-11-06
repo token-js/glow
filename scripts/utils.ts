@@ -3,9 +3,10 @@ import { encoding_for_model, Tiktoken, TiktokenModel } from "tiktoken";
 import { CONTEXT_WINDOWS, MODEL_FINE_TUNING_INFO, todoStatusPriorityMap } from "./constants";
 import OpenAI, { toFile } from "openai";
 import { ExportedPiMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus, TrainingDataset } from "./types";
-import { createReadStream, readFile, readFileSync, writeFileSync } from "fs";
+import { createReadStream, existsSync, mkdirSync, readFile, readFileSync, writeFileSync } from "fs";
 import * as readline from 'readline';
 import { appendFile } from "fs/promises";
+import { createHash } from "crypto";
 
 export const getInflectionResponse = async (
   truncatedMessages: ChatCompletionMessageParam[],
@@ -218,8 +219,7 @@ export const convertToChatCompletionMessageParams = (
 
 // TODO(later-later): rename
 export const makeTODO = (
-  pi: ParsedExportedPiData,
-  model: TiktokenModel
+  pi: ParsedExportedPiData
 ): TODO => {
   const getInitialStatus = (): TODOStatus => {
     let lowestStatus: TODOStatus | null = null;
@@ -252,9 +252,7 @@ export const makeTODO = (
 
 
     const initialStatus = getInitialStatus()
-    const openaiMessage: ChatCompletionMessageParam = {role, content: piMessage.text}
-    const tokens = estimateTokensForMessageParam(openaiMessage, model)
-    return {role, content: piMessage.text, status: initialStatus, tokens}
+    return {role, content: piMessage.text, status: initialStatus}
   }))
 
   return {
@@ -287,15 +285,8 @@ export const getNextTODOStatus = (currentStatus: TODOStatus): TODOStatus => {
   throw new Error(`TODO(docs)`)
 };
 
-const getTokensForTODOMessageArray = (
-  messages: Array<TODOMessage>
-): number => {
-  const sum = messages.reduce((totalTokens, message) => totalTokens + message.tokens, 0);
-  return sum + 3 // Every reply is primed with <|start|>assistant<|message|>
-}
-
 export const getFinalMessagesByTokenLimit = (
-  conversation: TODOMessage[],
+  messages: TODOMessage[],
   model: TiktokenModel,
   tokenLimit: number
 ): TODOMessage[] => {
@@ -304,18 +295,18 @@ export const getFinalMessagesByTokenLimit = (
     throw new Error(`TODO: Token limit exceeds the maximum context window for the model.`);
   }
 
-  const conversationCopy = structuredClone(conversation);
-  let tokensCount = getTokensForTODOMessageArray(conversationCopy);
+  const messagesCopy = structuredClone(messages)
+  let tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
   while (tokensCount > tokenLimit) {
-    conversationCopy.shift(); // Removes the first element
-    tokensCount = getTokensForTODOMessageArray(conversationCopy);
+    messagesCopy.shift(); // Removes the first element
+    tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
   }
 
-  return conversationCopy;
+  return messagesCopy;
 };
 
 export const getInitialMessagesByTokenLimit = (
-  conversation: TODOMessage[],
+  messages: TODOMessage[],
   model: TiktokenModel,
   tokenLimit: number
 ): TODOMessage[] => {
@@ -324,14 +315,14 @@ export const getInitialMessagesByTokenLimit = (
     throw new Error(`TODO: Token limit exceeds the maximum context window for the model.`);
   }
 
-  const conversationCopy = structuredClone(conversation);
-  let tokensCount = getTokensForTODOMessageArray(conversationCopy);
+  const messagesCopy = structuredClone(messages)
+  let tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
   while (tokensCount > tokenLimit) {
-    conversationCopy.pop(); // Removes the last element
-    tokensCount = getTokensForTODOMessageArray(conversationCopy);
+    messagesCopy.pop(); // Removes the last element
+    tokensCount = estimateTokensForMessages(messagesCopy.map(toChatCompletionMessageParam), model);
   }
 
-  return conversationCopy;
+  return messagesCopy;
 };
 
 // TODO(later-later): rm if unused
@@ -343,38 +334,51 @@ export const toChatCompletionMessageParam = (message: TODOMessage): ChatCompleti
 }
 
 // Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
-const estimateTokensForMessageParam = (
-  message: ChatCompletionMessageParam,
-  encoding: Tiktoken
-): number => {
-  // TODO(later): create a type predicate that throws an error for superset types of
-  // ChatCompletionMessageParam.
-  const tokensPerName = 1;
-  let numTokens = 3
-  for (const [key, value] of Object.entries(message)) {
-    numTokens += encoding.encode(value).length;
-    if (key === "name") {
-      numTokens += tokensPerName;
-    }
-  }
-  
-  return numTokens
-}
-
-// Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
+// 
+// TODO(docs): explain rationale for cache
 export const estimateTokensForMessages = (
   messages: ChatCompletionMessageParam[],
   model: TiktokenModel
 ): number => {
+  const encoding = encoding_for_model(model);
+  const tokensPerMessage = 3;
+  const tokensPerName = 1;
   let numTokens = 0;
 
-  const encoding = encoding_for_model(model);
-  for (const message of messages) {
-    numTokens += estimateTokensForMessageParam(message, encoding)
+  let cache: Record<string, number> = {}
+  const cacheFilePath = `.cache/${model}.json`
+  if (existsSync(cacheFilePath)) {
+    cache = JSON.parse(readFileSync(cacheFilePath, 'utf-8'))
+  } else {
+    mkdirSync(`.cache`, { recursive: true});
   }
+
+  for (const message of messages) {
+    numTokens += tokensPerMessage;
+    for (const [key, value] of Object.entries(message)) {
+      const hash = sha256()
+      if ()
+      numTokens += encoding.encode(value).length;
+      if (key === "name") {
+        numTokens += tokensPerName;
+      }
+    }
+    encoding.free()
+  }
+
+  writeFileSync(cacheFilePath, JSON.stringify(cache), 'utf-8')
 
   numTokens += 3; // Every reply is primed with <|start|>assistant<|message|>
   return numTokens;
 };
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+const sha256 = (input: string): string => {
+  const hash = createHash('sha256');
+  hash.update(input);
+  return hash.digest('hex');
+};
+
+// TODO(later-later): in production, make sure you don't call tiktoken's encoding function on the
+// whole chat history. it's very, very slow.

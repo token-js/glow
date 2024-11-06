@@ -1,7 +1,7 @@
 import { ChatCompletionMessageParam } from "openai/resources";
 import { ExportedPiMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus } from "../types";
 import { getCurrentTODOStatus, getNextTODOStatus, makeTODO, toChatCompletionMessageParam, getFinalMessagesByTokenLimit, getInitialMessagesByTokenLimit } from "../utils"
-import { TiktokenModel } from "tiktoken";
+import { encoding_for_model, TiktokenModel } from "tiktoken";
 import { ESTIMATED_TOKENS_PER_MESSAGE } from "../constants";
 import OpenAI from "openai";
 import { existsSync, readFileSync, writeFileSync } from "fs";
@@ -147,7 +147,7 @@ Final message: "${targetMessage}"`
   if (existsSync(cleanDataFilePath)) {
     cleanData = JSON.parse(readFileSync(cleanDataFilePath, 'utf-8'))
   } else {
-    cleanData = makeTODO(piData, )
+    cleanData = makeTODO(piData)
     writeFileSync(cleanDataFilePath, JSON.stringify(cleanData), 'utf-8')
   }
 
