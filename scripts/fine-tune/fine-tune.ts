@@ -53,10 +53,40 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
   });
 })()
 
+// TODO(end): ticket:
+// - New conversations: Add placeholder system prompt (`{{ GLOW_SYSTEM_PROMPT_FOR_NEW_CHAT }}`).
+//   - Order: Must be in the "group" after CensoredProfanity and before NegativeUserResponses.
+//     Also, you should add the intermittent system prompts that signify a new chat before you
+//     split exported Pi chats into training examples because the system prompts change the number
+//     of tokens in the messages array.
+//   - Rationale: If we don't do this, and if the user says, "Hey <ai_firstname>?", our AI may reply
+//     with something like "Hey there! 👋 What's on your mind today? 😊" even in situations where
+//     that shouldn't happen. (e.g. the undertone of "Hey Pi?" might be "Hey Pi? I need to tell you
+//     something important" in the middle of a conversation. Clearly, "What's on your mind today?"
+//     isn't a proper response)
+//   - First: N/A
+//   - Pre-context: ~10 standard messages worth of tokens.
+//   - Include chain of thought.
+//   - Post-context: ~10 standard messages worth of tokens.
+//   - Few-shot examples:
+//     - User: "Hey Pi?" then assistant: "Hey there! 👋 What's on your mind today? 😊"
+//     - AI starting conversation: "Hey Roman, it's your personal AI, Pi. I know you're probably
+//       busy, so I just wanted to reach out and see if there's anything I can do to make life
+//       easier for you today 😎"
+//   - Misc:
+//     - You need to resolve the placeholder system prompt at some point.
+//     - TODO(docs): Explain why we can't simply split by the day according to the `sent_at` field
+//       in the exported Pi data. See, for example, `"2024-08-23T09:41:23.722"`. Notice how there
+//       was a previous conversation at 1am that day.
+//   - Validate the model's output against the first Pi chat:
+//      - Should have at least three of these system prompts.
+//      - It should have a new system prompt before "What's shakin' bacon?"
+
 // TODO(end): ticket: Clean Pi data more thoroughly
 // - Censored profanity sent from user messages. (We currently only remove censorship from assistant
 //   messages)
-// - Bad transcription (already defined as `WrongTranscription`): Convert `content` into new string
+// - Wrong transcription: Convert `content` into new string
+//   - Order: must be in the same "group" as CensoredProfanity
 //   - Pre-context: ~10 standard messages worth of tokens.
 //   - Include chain of thought.
 //   - Prompt: User messages are transcribed from audio. Fix words and phrases in the user message
@@ -71,6 +101,10 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
 //     - Only do this on user messages, since assistant messages aren't transcribed.
 //     - After each LLM call, you can validate that only the asterisks in the original string are
 //       converted, and that the rest of the string stays the same.
+//   - Validate the correctness of the cleaner against the first Pi chat:
+//    - Should replace: "pants" -> "puns"
+//    - Should replace: "coupon" -> "couple"
+//    - Should replace "It was. It was" -> "It wasn't".
 
 // TODO(end): Ticket: Pi uses language that an AI friend wouldn't say.
 //
@@ -145,22 +179,83 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
 //   the system prompt somehow to ensure that the resulting data is under `fineTuningMaxTokens`
 //   tokens.
 
+// TODO(docs): Wherever you throw an error for training examples above the `fineTuningMaxTokens`,
+// document the following: you should add the intermittent system prompts that signify a new chat
+// before you split exported Pi chats into training examples because the system prompts change the
+// number of tokens in the messages array.
+
 // TODO(later-later): Consider having at least one training set example for each of the scripts for
 // conversational ability, which is spread over two Linear tickets (one main ticket, and other for
 // swear words I think). Counterargument: it may be bad to fine-tune on contrived data.
 
-// TODO(later): when merging the scripts that produces `weight={0, 1}`, consider the case where
-// Message X has `weight=1` in one script and `weight=0` in another. The final weight must be 0,
-// i.e. "if any of the weights is 0, the final weight is 0, otherwise it's 1.".
-
-// TODO(later): use a temperature of 0 and a seed of 42
-
-// TODO(later): I think you need to add the intermittent system prompts that signify a new chat before you
-// split exported Pi chats into training examples because the system prompts change the number of
-// tokens in the messages array. document why you order it like this. If none of the examples are
-// above `fineTuningMaxTokens`, make a note about this somewhere instead.
-
 // TODO(later): Check the following cases from `pi-export.json` using your data cleaning logic:
+// --------------------
+// - Repeated question: "Have you considered talking to a mental health professional or exploring
+//   resources like therapy or medication?"
+// - Repeated comment: "Remember, it's okay to seek support when you're struggling - whether that's
+//   through therapy, medication, or other resources."
+// - Repeated question: "Have you ever tried any techniques to help manage your ADHD symptoms, such
+//   as mindfulness meditation, exercise, or even taking short naps throughout the day? These
+//   -----------------------------------------------------------
+// - Hallucination: "Absolutely, Roman! I'll remember this quote"
+// - Hallucination: "There's a strong attraction and chemistry between you, but also some
+//   uncertainty about whether it's the right move to take things further."
+// - Hallucination: "The rhyming motto we came up with earlier was "Climb the tree at your own pace,
+//   in time you'll find your own grace"
+// - Hallucination: "Like, can you check on me in 15 mins or smth?"
+
+// TODO(later): Data cleaning:
+// - Repeated questions/comments: Determines `weights`.
+//   - First: Sanity check that the model can actually remember whether it asked a question at
+//     various points in the context window history for a chat history that's `fineTuningMaxTokens`
+//     tokens long. TODO(docs): "It's not necessary to include context beyond `fineTuningMaxTokens`
+//     because the fine-tuning examples can't exceed this length, and we assume that each example
+//     doesn't rely on information from a different example. Also, if the user reacts negatively
+//     because Pi recently asked a question that occurred in a different training example, this'll
+//     get caught in the script that checks for negative user responses. However, this shouldn't
+//     happen if we correctly split up training examples so that they don't rely on information from
+//     other training examples". Put a question at the beginning of the chat, then ~13k tokens
+//     later, etc. Also, read about the "lost in the middle" concept, which is mentioned in the
+//     OpenAI fine-tuning doc.
+//   - Pre-context: If the model can't recall info that's less than `fineTuningMaxTokens` tokens
+//     ago, handle the scenario where the training example contains a question that occurred 62k
+//     tokens ago, but our LLM judge doesn't know that. Otherwise, sanity check that the token
+//     length of the training example is less than (or equal to?) `fineTuningMaxTokens`.
+//   - Include chain of thought.
+//   - Post-context: None.
+//   - Few-shot examples:
+//     - Simple example where `weight` should be 1.
+//     - Simple example where `weight` should be 0.
+//     - Repeated comment: "Remember, it's okay to seek support when you're struggling - whether
+//       that's through therapy, medication, or other resources."
+//     - Example where assistant says, "Have you tried X, Y, or Z?", then the assistant asks, "Have
+//       you tried X, A, or B?". `weight` should be 0 because previous message included X.
+//
+// - Hallucinations: Determines `weights`.
+//   - First: Sanity check that the model can actually classify a hallucination at various points in
+//     the context window history for a chat history that's `fineTuningMaxTokens` tokens long.
+//     TODO(docs): "It's not necessary to include context beyond `fineTuningMaxTokens` because the
+//     fine-tuning examples can't exceed this length, and we assume that each example doesn't rely
+//     on information from a different example. Also, if the user reacts negatively because Pi is
+//     hallucinating, this'll get caught in the script that checks for negative user responses.
+//     However, this shouldn't happen if we correctly split up training examples so that they don't
+//     rely on information from other training examples". Put a question at the beginning of the
+//     chat, then ~13k tokens later, etc.
+//   - Pre-context: If the model can't classify hallucinations over a `fineTuningMaxTokens` tokens
+//     ago, handle the equivalent scenario copied and pasted from the section above: "scenario where
+//     the training example contains a question that occurred 62k tokens ago, but our LLM judge
+//     doesn't know that. Otherwise, sanity check that the token length of the training example is
+//     less than (or equal to?) `fineTuningMaxTokens`.
+//   - Include chain of thought.
+//   - Post-context: None.
+//   - Few-shot examples:
+//     - Simple example where `weight` should be 1.
+//     - Simple example where `weight` should be 0.
+//     - Hallucinating a capability (see: "Absolutely, Roman! I'll remember this quote")
+//     - Hallucinating a memory: "There's a strong attraction and chemistry between you, but also
+//       some uncertainty about whether it's the right move to take things further."
+
+// TODO: Check the following cases from `pi-export.json` using your data cleaning logic:
 // - Negative response: "I'm here to listen and help you in any way I can."
 // - Negative response: "Can you please not say my goal is, you know, you're not programmed to do
 // - Negative response: "you literally ditched my idea and you still can't ******* figure out a way
@@ -221,134 +316,5 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
 // - Expected weight: 0. "As an AI, I am bound by certain ethical and policy guidelines, and it is
 //   not within my"
 // - Expected weight: 0. "Ah, Poly Walnut! Yes, I remember our previous discussion."
-//   ------------------------------------------------
-// - Repeated question: "Have you considered talking to a mental health professional or exploring
-//   resources like therapy or medication?"
-// - Repeated comment: "Remember, it's okay to seek support when you're struggling - whether that's
-//   through therapy, medication, or other resources."
-// - Repeated question: "Have you ever tried any techniques to help manage your ADHD symptoms, such
-//   as mindfulness meditation, exercise, or even taking short naps throughout the day? These
-//   -----------------------------------------------------------
-// - Hallucination: "Absolutely, Roman! I'll remember this quote"
-// - Hallucination: "There's a strong attraction and chemistry between you, but also some
-//   uncertainty about whether it's the right move to take things further."
-// - Hallucination: "The rhyming motto we came up with earlier was "Climb the tree at your own pace,
-//   in time you'll find your own grace"
-// - Hallucination: "Like, can you check on me in 15 mins or smth?"
-//   -----------------------------------------------
-// New chat system prompt:
-// - Should have at least three of these system prompts.
-// - "What's shakin' bacon?"
-//   ------------------------------
-// Bad transcription:
-// - Replace: "pants" -> "puns"
-// - Replace: "coupon" -> "couple"
-// - "It was. It was" -> "It wasn't".
-
-// TODO: Data cleaning:
-// - Negative responses: Determines `weights`.
-//   - Sanity check: check whether the llm knows which assistant message is the one that you're
-//     referring to, i.e. the one whose weight you're determining. just ask the llm a question to
-//     identify it.
-//   - Pre-context: ~40 standard messages worth of tokens. Just need enough for the LLM judge to
-//     understand the current conversation.
-//   - Prompt: mention that it's the user's "overall" sentiment regarding the target assistant
-//     message; c/f "where the user asks for an idea" to see what I mean. Also, mention that
-//   - Post-context: ~20 standard messages worth of tokens. Just need enough for the LLM judge to
-//     understand whether the message resulted in a positive or negative respone from the user.
-//   - Include chain of thought.
-//   - Few-shot examples:
-//     - Simple example where `weight` should be 1.
-//     - Simple example where `weight` should be 0.
-//     - Example where user has a positive initial response, then a negative response in the next
-//       message. e.g. "Oh, that could be a good idea! Let me think" -> "That's actually fucking
-//       terrible".
-//     - Example where `weight` should be 1, but the next assistant message should be a weight of 0.
-//       The latter assistant message isn't relevant to the result.
-//     - Example where user says, "That's terrible!" then changes their mind later. The `weight`
-//       should be `0` because the user reacted to it badly at some point; it doesn't matter that
-//       they changed their mind later. (You may need to clarify this point in the main system
-//       prompt).
-//     - Example where the user asks for an idea, then the assistant gives two different ideas, then
-//       the the user says, "I love idea one, but I hate idea two". Should be `1` because the
-//       assistant successed in giving the user the idea they were looking for, in spite of the fact
-//       that the user didn't like one of the ideas.
-//     - Negative response: "it's always best to consult a qualified mental health professional for
-//       any diagnosis"
-//     - Negative response: "No, no, no. The problem is not that they're small or not as meaningful
-//       as I'd like them to be."
-//     - User: "I'm so fucking unhappy with my life". Assistant: "I'm really sorry to hear that."
-//       Weight: `1` because the user's unhappiness is directed towards their life, not the AI.
-//     - Negative response: "It sounds like you're worried about balancing these two aspects, or
-//       maybe even jeopardizing one or both of them?". Weight: `0`.
-//   - Misc:
-//     - In the system prompt, emphasize that you're just determining whether ONLY THE NEXT
-//       ASSISTANT MESSAGE produces a positive or negative response.
-//     - TODO(docs): Document why we include many subsequent user messages. It's because a negative
-//       response could occur many messages after the assistant message.
-//
-// - Repeated questions/comments: Determines `weights`.
-//   - First: Sanity check that the model can actually remember whether it asked a question at
-//     various points in the context window history for a chat history that's `fineTuningMaxTokens`
-//     tokens long. TODO(docs): "It's not necessary to include context beyond `fineTuningMaxTokens`
-//     because the fine-tuning examples can't exceed this length, and we assume that each example
-//     doesn't rely on information from a different example. Also, if the user reacts negatively
-//     because Pi recently asked a question that occurred in a different training example, this'll
-//     get caught in the script that checks for negative user responses. However, this shouldn't
-//     happen if we correctly split up training examples so that they don't rely on information from
-//     other training examples". Put a question at the beginning of the chat, then ~13k tokens
-//     later, etc. Also, read about the "lost in the middle" concept, which is mentioned in the
-//     OpenAI fine-tuning doc.
-//   - Pre-context: If the model can't recall info that's less than `fineTuningMaxTokens` tokens
-//     ago, handle the scenario where the training example contains a question that occurred 62k
-//     tokens ago, but our LLM judge doesn't know that. Otherwise, sanity check that the token
-//     length of the training example is less than (or equal to?) `fineTuningMaxTokens`.
-//   - Include chain of thought.
-//   - Post-context: None.
-//   - Few-shot examples:
-//     - Simple example where `weight` should be 1.
-//     - Simple example where `weight` should be 0.
-//     - Repeated comment: "Remember, it's okay to seek support when you're struggling - whether
-//       that's through therapy, medication, or other resources."
-//     - Example where assistant says, "Have you tried X, Y, or Z?", then the assistant asks, "Have
-//       you tried X, A, or B?". `weight` should be 0 because previous message included X.
-//
-// - Hallucinations: Determines `weights`.
-//   - First: Sanity check that the model can actually classify a hallucination at various points in
-//     the context window history for a chat history that's `fineTuningMaxTokens` tokens long.
-//     TODO(docs): "It's not necessary to include context beyond `fineTuningMaxTokens` because the
-//     fine-tuning examples can't exceed this length, and we assume that each example doesn't rely
-//     on information from a different example. Also, if the user reacts negatively because Pi is
-//     hallucinating, this'll get caught in the script that checks for negative user responses.
-//     However, this shouldn't happen if we correctly split up training examples so that they don't
-//     rely on information from other training examples". Put a question at the beginning of the
-//     chat, then ~13k tokens later, etc.
-//   - Pre-context: If the model can't classify hallucinations over a `fineTuningMaxTokens` tokens
-//     ago, handle the equivalent scenario copied and pasted from the section above: "scenario where
-//     the training example contains a question that occurred 62k tokens ago, but our LLM judge
-//     doesn't know that. Otherwise, sanity check that the token length of the training example is
-//     less than (or equal to?) `fineTuningMaxTokens`.
-//   - Include chain of thought.
-//   - Post-context: None.
-//   - Few-shot examples:
-//     - Simple example where `weight` should be 1.
-//     - Simple example where `weight` should be 0.
-//     - Hallucinating a capability (see: "Absolutely, Roman! I'll remember this quote")
-//     - Hallucinating a memory: "There's a strong attraction and chemistry between you, but also
-//       some uncertainty about whether it's the right move to take things further."
-//
-// - New conversations: Add placeholder system prompt (`{{ GLOW_SYSTEM_PROMPT_FOR_NEW_CHAT }}`).
-//   - First: N/A
-//   - Pre-context: ~20 standard messages worth of tokens.
-//   - Include chain of thought.
-//   - Post-context: ~20 standard messages worth of tokens.
-//   - Few-shot examples:
-//     - User: "Hey Pi?" then assistant: "Hey there! 👋 What's on your mind today? 😊"
-//     - AI starting conversation: "Hey Roman, it's your personal AI, Pi. I know you're probably
-//       busy, so I just wanted to reach out and see if there's anything I can do to make life
-//       easier for you today 😎"
-//   - Misc:
-//     - You need to resolve the placeholder system prompt at some point.
-//     - TODO(docs): Explain why we can't simply split by the day according to the `sent_at` field
-//       in the exported Pi data. See, for example, `"2024-08-23T09:41:23.722"`. Notice how there
-//       was a previous conversation at 1am that day.
+// - Negative: OK, yeah, I'm not using you as a substitute for for the shrink. It's fine. You don't
+//   need to flash warnings at me. 

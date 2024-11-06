@@ -21,11 +21,14 @@ export const ESTIMATED_TOKENS_PER_MESSAGE = 100
 // TODO(later): rename
 // TODO(docs):
 export const todoStatusPriorityMap: Record<TODOStatus, number> = {
-  [TODOStatus.CensoredProfanity]: 1,
-  [TODOStatus.WrongTranscription]: 2,
-  [TODOStatus.NewConversations]: 3,
-  [TODOStatus.NegativeUserResponses]: 4,
-  [TODOStatus.RepeatedStatements]: 5,
-  [TODOStatus.Hallucinations]: 6,
-  [TODOStatus.Done]: 7
+  // TODO(docs): group 1
+  // [TODOStatus.CensoredProfanity]: 1, // TODO(later): undo
+  // TODO(docs): group 2. put steps that are more likely to result in a weight of 0 earlier as an optimization.
+  // if a message is given a weight of 0, we skip it on subsequent steps that determine the weight, leading to 
+  // cost and speed savings during subsequent cleaning steps.
+  [TODOStatus.NegativeUserResponses]: 2,
+  [TODOStatus.RepeatedStatements]: 3,
+  [TODOStatus.Hallucinations]: 4,
+  // TODO(docs): done
+  [TODOStatus.Done]: 5
 };

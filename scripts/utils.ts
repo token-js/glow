@@ -223,7 +223,7 @@ export const convertToChatCompletionMessageParams = (
 export const makeTODO = (
   pi: ParsedExportedPiData
 ): TODO => {
-  const getInitialStatus = (): TODOStatus => {
+  const getInitialStep = (): TODOStatus => {
     let lowestStatus: TODOStatus | null = null;
     let lowestValue = Number.POSITIVE_INFINITY;
   
@@ -253,8 +253,9 @@ export const makeTODO = (
     }
 
 
-    const initialStatus = getInitialStatus()
-    return {role, content: piMessage.text, status: initialStatus}
+    const initialStep = getInitialStep()
+    // TODO(Docs): weight defaults to 1 because...
+    return {role, content: piMessage.text, nextStep: initialStep, weight: 1}
   }))
 
   return {
@@ -264,7 +265,7 @@ export const makeTODO = (
 
 // TODO(later-later): rename
 export const getCurrentTODOStatus = (messages: Array<TODOMessage>): TODOStatus => {
-  const statuses = messages.map(m => m.status)
+  const statuses = messages.map(m => m.nextStep)
 
   let earliestStatus = statuses[0];
   for (let i = 1; i < statuses.length; i++) {

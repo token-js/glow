@@ -36,10 +36,10 @@ export type ParsedExportedPiData = {
 // TODO(later-later): rename everything below
 
 // TODO(docs): must be in ascending order according to when the step occurs during the cleaning process.
+// 
+// TODO(later-later): status -> step
 export enum TODOStatus {
   CensoredProfanity = "CensoredProfanity",
-  WrongTranscription = "WrongTranscription",
-  NewConversations = "NewConversations",
   NegativeUserResponses = "NegativeUserResponses",
   RepeatedStatements = "RepeatedStatements",
   Hallucinations = "Hallucinations",
@@ -49,9 +49,12 @@ export enum TODOStatus {
 export type TODOMessage = {
   role: 'assistant' | 'user' | 'system'
   content: string
-  status: TODOStatus
+  nextStep: TODOStatus
+  weight: 0 | 1
 }
 
 export type TODO = {
   messages: Array<TODOMessage>
 }
+
+// TODO(later): the files written from python should be json, not jsonl.
