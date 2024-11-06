@@ -1,14 +1,17 @@
-import { ChatCompletionMessageParam, FileObject } from "openai/resources";
+import { ChatCompletionAssistantMessageParam, ChatCompletionMessageParam, ChatCompletionSystemMessageParam, ChatCompletionUserMessageParam, FileObject } from "openai/resources";
 import { TiktokenModel } from "tiktoken";
-import { MODEL_FINE_TUNING_INFO } from "./constants";
+import { CONTEXT_WINDOWS, MODEL_FINE_TUNING_INFO, todoStatusPriorityMap } from "./constants";
 import OpenAI, { toFile } from "openai";
-import { TrainingDataset } from "./types";
-import { estimateTokensForOpenAIModel } from "../../lib/utils";
+import { ExportedPiMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus, TrainingDataset } from "./types";
+import { createReadStream, readFile, readFileSync, writeFileSync } from "fs";
+import * as readline from 'readline';
+import { estimateTokensForOpenAIModel } from "../lib/utils";
+import { appendFile } from "fs/promises";
 
 export const getInflectionResponse = async (
   truncatedMessages: ChatCompletionMessageParam[],
   config: string,
-  // TODO(later): use metadata?
+  // TODO(later-later): use metadata?
   // metadata: InflectionChatCompletionMetadata 
 ): Promise<string> => {
   function mapMessage(msg: ChatCompletionMessageParam) {
@@ -33,7 +36,7 @@ export const getInflectionResponse = async (
     'Content-Type': 'application/json',
   };
   const payload = { config, context: mappedContext };
-  // TODO(later): use metadata?
+  // TODO(later-later): use metadata?
   // const payload = { config, context: mappedContext, metadata };
   const response = await fetch(url, {
     method: 'POST',
@@ -132,11 +135,6 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
       if (!("role" in message) || !("content" in message)) {
         formatErrors["message_missing_key"] = (formatErrors["message_missing_key"] || 0) + 1;
       }
-      if (message['role'] === 'assistant' || message['role'] === 'user') {
-        if (typeof message.name !== 'string') {
-          formatErrors["missing_name"] = (formatErrors["missing_name"] || 0) + 1;
-        }
-      }
 
       if (Object.keys(message).some(k => !["role", "content", "name", "function_call", "weight"].includes(k))) {
         formatErrors["message_unrecognized_key"] = (formatErrors["message_unrecognized_key"] || 0) + 1;
@@ -187,3 +185,238 @@ export const uploadFileToOpenAI = async (openai: OpenAI, filename: string, datas
 
   return fileObject
 }
+
+const isRawExportedPiMessage = (message: any): message is ExportedPiMessage => {
+  return (
+      typeof message.text === "string" &&
+      (message.sender === "AI" || message.sender === "HUMAN") &&
+      typeof message.channel === "string" &&
+      typeof message.sent_at === "string"
+  );
+};
+
+export const convertToChatCompletionMessageParams = (
+  message: ExportedPiMessage
+): ChatCompletionMessageParam => {
+  if (!isRawExportedPiMessage(message)) {
+    throw new Error(`Input data is not expected type`)
+  }
+
+    let role: ChatCompletionMessageParam['role']
+    if (message.sender === 'AI') {
+      role = 'assistant'
+    } else if (message.sender === 'HUMAN') {
+      role = 'user'
+    } else {
+      throw new Error(`TODO(docs)`)
+    }
+    return {
+      role: role,
+      content: message.text
+    }
+}
+
+export const readJsonLinesFile = (filePath: string): Promise<any[]> => {
+  return new Promise((resolve, reject) => {
+    const jsonObjects: any[] = [];
+    const rl = readline.createInterface({
+      input: createReadStream(filePath),
+      crlfDelay: Infinity
+    });
+
+    rl.on('line', line => {
+      try {
+        if (line.trim()) {
+          const jsonObject = JSON.parse(line);
+          jsonObjects.push(jsonObject);
+        }
+      } catch (error) {
+        rl.close(); // Stop processing further lines
+        reject(error);
+      }
+    });
+
+    rl.on('close', () => resolve(jsonObjects));
+    rl.on('error', reject);
+  });
+};
+
+
+export const countJsonLines = async (filePath: string): Promise<number> => {
+  const fileStream = createReadStream(filePath);
+  const rl = readline.createInterface({
+      input: fileStream,
+      crlfDelay: Infinity,
+  });
+
+  let count = 0;
+
+  for await (const line of rl) {
+      try {
+          const parsedLine = JSON.parse(line);
+          if (typeof parsedLine === 'object' && parsedLine !== null) {
+              count++;
+          }
+      } catch (error) {
+          // If JSON.parse fails, it's not a valid JSON object; ignore this line
+      }
+  }
+
+  return count;
+};
+
+// TODO(later-later): rename
+export const makeTODO = (
+  pi: ParsedExportedPiData
+): TODO => {
+  const getInitialStatus = (): TODOStatus => {
+    let lowestStatus: TODOStatus | null = null;
+    let lowestValue = Number.POSITIVE_INFINITY;
+  
+    for (const [status, value] of Object.entries(todoStatusPriorityMap)) {
+      if (value < lowestValue) {
+        lowestValue = value;
+        lowestStatus = status as TODOStatus;
+      }
+    }
+  
+    if (lowestStatus === null) {
+      throw new Error("No lowest status was found.");
+    }
+  
+    return lowestStatus;
+  };
+
+
+  const messages: Array<TODOMessage> = pi.messages.map((piMessage => {
+    let role: ChatCompletionMessageParam['role']
+    if (piMessage.sender === 'AI') {
+      role = 'assistant'
+    } else if (piMessage.sender === 'HUMAN') {
+      role = 'user'
+    } else {
+      throw new Error(`TODO(docs)`)
+    }
+
+
+    const initialStatus = getInitialStatus()
+    return {role, content: piMessage.text, status: initialStatus}
+  }))
+
+  return {
+    id: pi.id,
+    messages: messages
+  }
+}
+
+export const appendJsonObjectToJsonl = async (filePath: string, jsonObject: Record<string, any>): Promise<void> => {
+  const jsonString = JSON.stringify(jsonObject);
+  await appendFile(filePath, `${jsonString}\n`, 'utf8');
+};
+
+// TODO(later-later): rename
+export const getCurrentTODOStatus = (messages: Array<TODOMessage>): TODOStatus => {
+  const statuses = messages.map(m => m.status)
+
+  let earliestStatus = statuses[0];
+  for (let i = 1; i < statuses.length; i++) {
+    if (todoStatusPriorityMap[statuses[i]] < todoStatusPriorityMap[earliestStatus]) {
+      earliestStatus = statuses[i];
+    }
+  }
+  return earliestStatus;
+};
+
+export const getNextTODOStatus = (currentStatus: TODOStatus): TODOStatus => {
+  const currentPriority = todoStatusPriorityMap[currentStatus];
+
+  for (const [status, priority] of Object.entries(todoStatusPriorityMap)) {
+    if (priority === currentPriority + 1) {
+      return status as TODOStatus
+    }
+  }
+
+  throw new Error(`TODO(docs)`)
+};
+
+export const getFinalMessagesByTokenLimit = (
+  conversation: ChatCompletionMessageParam[],
+  model: TiktokenModel,
+  tokenLimit: number
+): ChatCompletionMessageParam[] => {
+  const maxContextWindow = CONTEXT_WINDOWS[model]
+  if (tokenLimit > maxContextWindow) {
+    throw new Error(`TODO(docs)`)
+  }
+
+  const conversationCopy = structuredClone(conversation)
+  let tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+  while (tokensCount > tokenLimit) {
+    conversationCopy.shift(); // Removes the first element
+    tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+  }
+
+  return conversationCopy;
+};
+
+export const getInitialMessagesByTokenLimit = (
+  conversation: ChatCompletionMessageParam[],
+  model: TiktokenModel,
+  tokenLimit: number
+): ChatCompletionMessageParam[] => {
+  const maxContextWindow = CONTEXT_WINDOWS[model];
+  if (tokenLimit > maxContextWindow) {
+    throw new Error(`TODO(docs)`);
+  }
+
+  const conversationCopy = structuredClone(conversation);
+  let tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+  while (tokensCount > tokenLimit) {
+    conversationCopy.pop(); // Removes the last element
+    tokensCount = estimateTokensForOpenAIModel(conversationCopy, model);
+  }
+
+  return conversationCopy;
+};
+
+export const toChatCompletionMessageParam = (message: TODOMessage): ChatCompletionAssistantMessageParam | ChatCompletionUserMessageParam | ChatCompletionSystemMessageParam => {
+  return {
+    role: message.role,
+    content: message.content
+  }
+}
+
+export const replaceJsonLineAt = async (
+  fileName: string,
+  lineIndex: number,
+  content: Record<string, any>
+): Promise<void> => {
+  const rl = readline.createInterface({
+    input: createReadStream(fileName),
+    crlfDelay: Infinity
+  });
+
+  let currentLineIndex = 0;
+  const updatedLines: string[] = [];
+  let lineReplaced = false;
+  const newContent = JSON.stringify(content);
+
+  for await (const line of rl) {
+    if (currentLineIndex === lineIndex) {
+      updatedLines.push(newContent);
+      lineReplaced = true;
+    } else {
+      updatedLines.push(line);
+    }
+    currentLineIndex++;
+  }
+
+  rl.close();
+
+  if (!lineReplaced) {
+    throw new Error(`Invalid lineIndex: ${lineIndex}`);
+  }
+
+  // Write the updated lines back to the same file
+  writeFileSync(fileName, updatedLines.join('\n'), 'utf-8');
+};

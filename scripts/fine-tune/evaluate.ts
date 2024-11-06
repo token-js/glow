@@ -10,8 +10,6 @@ import { getInflectionResponse } from "./utils";
 
 dotenv.config();
 
-// TODO(later): mv all extraneous stuff from this file.
-
 const messages = TRAINING_DATASET[0].messages
 
 const askQuestion = (question: string): Promise<string> => {

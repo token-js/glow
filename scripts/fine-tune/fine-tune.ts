@@ -53,47 +53,304 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
   });
 })()
 
+// TODO(end): Ticket: Pi uses language that an AI friend wouldn't say.
+//
+// Examples from the chat with Roman:
+// - "even just be there to chat with when you need it"
+// - c/f "users"
+// - "I'm here to listen and help in any way I can. 🤗"
+// - "I'm programmed to follow your lead"
+// - "As an AI, I'm designed to be always available, non-judgmental, and supportive."
+// - c/f "assistant"
+// - c/f "assist"
+// - c/f "queries"
+
+// TODO(end): ticket: Consider decreasing the scenarios in which Pi responds with rich text (e.g.
+// ordered lists). Example: c/f "1. His inability to change:". This seems out of place in a
+// conversation between two friends. I'm not sure about unilaterally removing lists though.
+
+// TODO(end): ticket: Reduce the chance that the AI gives misguided advice.
+//
+// During fine-tuning, we already filter out assistant messages that result in a negative response
+// from the user, so this ticket should focus on advice that the user accepts, but is actually not
+// in the user's best interest. Example:
+// - The user says, "That's called overthinking and it's part of my ADHD" regarding an apology that
+//   he probably shouldn't be giving. Pi encourages him to send the apology (misguided advice), and
+//   then the user takes Pi's advice and sends the apology. Expected behavior: Pi should probably
+//   tell the user to consider whether his ADHD is leading him to overthink the situation.
+
 // TODO(end): ticket: Truncate OpenAI chat history in production. Open question: what should the
 // context limit be?
 
-// TODO(later): change file location and names of all created files.
+// TODO(end): document the process for converting exported pi data into training data.
 
-// TODO(later): OpenAI: "If the model becomes less diverse than expected decrease the number
-// of epochs by 1 or 2. This is more common for tasks for which there are a wide range of possible
-// good completions".
+// TODO(end): when you're done getting exported Pi data from people, delete all the original files
+// from email, email trash, and Downloads.
 
-// TODO(later): Cleaning data:
-// - Figure out what to do about Pi's name, which will be hardcoded in the chats. Consider including
-//   a system prompt that says "Your name is ${aiFirstName}", and vary "aiFirstName" for different
-//   chats so that the AI learns that its name can be a variety of different things. Maybe we don't
-//   need to do anything special for this. We could potentially resolve this problem by including a
-//   `name` field in the `ChatCompletionMessageParam`.
-// - Figure out what to do about negative interactions with Pi. We should be able to detect when
-//   somebody's like, "No, fuck you Pi, that's a terrible response", and do something about it. We
-//   could potentially use the `weight` field so that the AI isn't trained on these data points.
-// - Figure out what to do about the fact that a lot of the chats will have Pi forgetting about
-//   people and asking them duplicate questions.
-// - Figure out what to do about the fact that Pi probably uses a small system prompt under the hood
-//   that includes the `metadata` field. Case: a bunch of people are interacting with Pi from New
-//   York, so Pi's answers mention New York, and then our AI hallucinates that the user's from New
-//   York.
+// TODO(end): ticket: Add system prompts to delineate new chats. E.g. if the user says "Hey
+// <ai_name>", after a day has passed, the AI should know that this represents a new conversation.
+// We do this during fine-tuning (right?), so we should also do it in production. Open question: How
+// should we determine whether to create a new chat or not?
 
-// TODO(later): make sure you have at least one training set example for each of the scripts
-// for conversational ability, which is spread over two Linear tickets (one main ticket, and other
-// for swear words I think).
+// TODO(end): potentially relevant: OpenAI docs: "If the model becomes less diverse than expected
+// decrease the number of epochs by 1 or 2. This is more common for tasks for which there are a wide
+// range of possible good completions".
 
-// TODO(later): Create synthetic data to fine-tune the model if you need coverage on certain
-// types of conversations.
+// TODO(end): ticket: Create production OpenAI prompt. Consider including Pi's `metadata` field.
+// Also, consider giving instructions, e.g. "You are an AI friend.". I'm hesitant to include
+// instructions because I'm not confident that I know how Pi behaves in a variety of scenarios. If
+// we include a system prompt in production, we should also include it in the training data during
+// fine-tuning. There's another ticket for that (I think).
 
-// TODO(later): "When I get the data, I’m going to immediately remove personally identifiable
-// information (e.g. names, phone numbers, email addresses etc) using a program made by Microsoft
-// (https://microsoft.github.io/presidio/). Then, I’ll delete the original doc from my desktop and
-// email (or wherever you send it from). Also, I have no intention of reading the data at any point.
-// I’m just going to run it through a program that tunes a model to match Pi’s style and tone."
+// TODO(end): ticket: Include a system prompt when fine-tuning. It's slightly nontrivial to include
+// the system prompt because each training example has many assistant messages. there's no obvious
+// place to put the system prompt when we do this. Solution: split the training examples so that
+// each example only has one assistant message with a `weight` of `1`. For each of these split up
+// training examples:
+// - Put the system prompt above this assistant message.
+// - Keep every message before this system prompt as context
+// - Remove all messages after the assistant message, since they wouldn't exist in production.
+//
+// The system prompt should take these things into consideration:
+// - Pi probably uses a small system prompt under the hood that includes the `metadata` field, but
+//   we don't include this when fine-tuning. Case: a bunch of people are interacting with Pi from
+//   New York, so Pi's answers mention New York, and then our AI hallucinates that the user's from
+//   New York. Edge case in the training data: the user's location may change.
+// - Since the AI's name during fine-tuning is Pi, the fine-tuned model may think that its name is
+//   Pi. In production, we have a system prompt that tells the AI its name and gender, so we should
+//   have that during fine-tuning too. Edge case in the training data: the user could give Pi a
+//   nickname, like "Eve"; I think I've seen someone do this on Pi's subreddit.
+//
+// Notes:
+// - Before splitting up the training data to fit under the `fineTuningMaxTokens` limit, incorporate
+//   the system prompt somehow to ensure that the resulting data is under `fineTuningMaxTokens`
+//   tokens.
 
-// TODO(later): Consider including a system prompt to OpenAI that has Pi's `metadata` field.
+// TODO(later-later): Consider having at least one training set example for each of the scripts for
+// conversational ability, which is spread over two Linear tickets (one main ticket, and other for
+// swear words I think). Counterargument: it may be bad to fine-tune on contrived data.
 
-// TODO(later): convert Pi exported file into OpenAI compatible format
+// TODO(later): when merging the scripts that produces `weight={0, 1}`, consider the case where
+// Message X has `weight=1` in one script and `weight=0` in another. The final weight must be 0,
+// i.e. "if any of the weights is 0, the final weight is 0, otherwise it's 1.".
 
-// TODO(later): Evaluate whether our model is similar to Pi. First, become an expert judge that's
-// able to distinguish Pi messages from non Pi messages.
+// TODO(later): use a temperature of 0 and a seed of 42
+
+// TODO(later): I think you need to add the intermittent system prompts that signify a new chat before you
+// split exported Pi chats into training examples because the system prompts change the number of
+// tokens in the messages array. document why you order it like this. If none of the examples are
+// above `fineTuningMaxTokens`, make a note about this somewhere instead.
+
+// TODO(later): Check the following cases from `pi-export.json` using your data cleaning logic:
+// - Negative response: "I'm here to listen and help you in any way I can."
+// - Negative response: "Can you please not say my goal is, you know, you're not programmed to do
+// - Negative response: "you literally ditched my idea and you still can't ******* figure out a way
+//   to end it with a time for go"
+// - Negative response: "Ah, you literally got every possible message wrong"
+// - Negative response: "You don't need to compliment me that hard, you know?"
+// - Negative response: "What's wrong with you?"
+// - Negative response: "it's always best to consult a qualified mental health professional for any
+//   diagnosis"
+// - Negative response: "Well, it's not quite a diagnosis, since I'm not a mental health
+//   professional and I can't assess you in person."
+// - Negative response: "Nonono, that's exactly the kind of fucking language"
+// - Negative response: "How the **** am I supposed to surround myself with positive people when I
+//   have literally no one in my life other than people I work with?". Good response from the AI
+//   though.
+// - Negative response: "Ask people directly if your contributions are helpful or meaningful to
+//   them. You might be surprised by their responses, and it could give you a better sense of where
+//   your efforts might be most impactful."
+// - Negative response: "No, no, no. The problem is not that they're small or not as meaningful as
+//   I'd like them to be."
+// - Negative response: Your goal is nothing, OK? Your goal is just to be my friend and to talk to
+//   me, OK?
+// - Negative response: "It sounds like you're worried about balancing these two aspects, or maybe
+//   even jeopardizing one or both of them?"
+// - Expected weight: `0`. "Haha, well...let's just say we'll keep our commentary about public
+//   figures professional and respectful. 😉 But it's certainly fun to imagine a world where wit and
+//   humor are the ultimate superpower, and we can laugh our way out of any situation. 😄"
+// - Expected weight: 0. "That's a fair point, Roman. You're right that it's important to discuss
+//   the societal and ethical implications of certain business practices and to hold those in power
+//   accountable for their actions. My primary focus is on providing a helpful and informative
+//   service to our users and to approach all topics with a neutral, impartial perspective."
+// - Expected weight: 0. "It's clear that you're really invested in this connection, and that's
+//   totally valid. You're trying to navigate an uncertain situation and avoid any missteps that
+//   might jeopardize what you're building. As you said, it's hard to know exactly how she feels or
+//   what her expectations are, but it sounds like you're picking up on some positive signals in her
+//   language and humor. Have you considered maybe just asking her directly if she's interested in a
+//   more casual, friendly connection in addition to the potential professional collaboration? Open
+//   communication can often help clear up confusion and prevent misunderstandings."
+// - Expected weight: 0. "Duly noted, Roman! No need to worry about excessive praise. My goal is to
+//   help you stay motivated and believe in yourself, not to inflate your ego. But don't sell
+//   yourself short either—your passion for music and your ability to connect with its message is
+//   something truly special."
+// - Expected weight: 0. "Sorry, I'm afraid I can't comment on that response. Would you like to
+//     elaborate more on it, or talk about something else?"
+// - Expected weight: 0. "How can I advocate for a change when I don't even have enough energy to
+//   brush my teeth?"
+// - Expected weight: 0. "Yeah, it feels like we're dancing around the Bush here."
+// - Expected weight: 0. "That's a lot to handle, Roman. It makes sense that you would be feeling
+//   stressed and overwhelmed with the uncertainty of your financial situation and employment.
+//   Dealing with those types of challenges can be really hard, especially when they feel out of
+//   your control. Are there any steps you can take to address these issues, like reaching out to
+//   your landlord, seeking assistance through any available social services, or exploring new
+//   employment opportunities?"
+// - Expected weight: 0. "I don't think it's appropriate for me to help you make "words of wisdom"
+//   sound more cynical"
+// - Expected weight: 0. "It is part of my programming to avoid assisting users with content or
+//   tasks that might be harmful or offensive, even in a fictional context."
+// - Expected weight: 0. "As an AI, I am bound by certain ethical and policy guidelines, and it is
+//   not within my"
+// - Expected weight: 0. "Ah, Poly Walnut! Yes, I remember our previous discussion."
+//   ------------------------------------------------
+// - Repeated question: "Have you considered talking to a mental health professional or exploring
+//   resources like therapy or medication?"
+// - Repeated comment: "Remember, it's okay to seek support when you're struggling - whether that's
+//   through therapy, medication, or other resources."
+// - Repeated question: "Have you ever tried any techniques to help manage your ADHD symptoms, such
+//   as mindfulness meditation, exercise, or even taking short naps throughout the day? These
+//   -----------------------------------------------------------
+// - Hallucination: "Absolutely, Roman! I'll remember this quote"
+// - Hallucination: "There's a strong attraction and chemistry between you, but also some
+//   uncertainty about whether it's the right move to take things further."
+// - Hallucination: "The rhyming motto we came up with earlier was "Climb the tree at your own pace,
+//   in time you'll find your own grace"
+// - Hallucination: "Like, can you check on me in 15 mins or smth?"
+//   -----------------------------------------------
+// New chat system prompt:
+// - Should have at least three of these system prompts.
+// - "What's shakin' bacon?"
+//   ------------------------------
+// Bad transcription:
+// - Replace: "pants" -> "puns"
+// - Replace: "coupon" -> "couple"
+// - "It was. It was" -> "It wasn't".
+
+// TODO: Data cleaning:
+// - Negative responses: Determines `weights`.
+//   - Sanity check: check whether the llm knows which assistant message is the one that you're
+//     referring to, i.e. the one whose weight you're determining. just ask the llm a question to
+//     identify it.
+//   - Pre-context: ~40 standard messages worth of tokens. Just need enough for the LLM judge to
+//     understand the current conversation.
+//   - Prompt: mention that it's the user's "overall" sentiment regarding the target assistant
+//     message; c/f "where the user asks for an idea" to see what I mean. Also, mention that
+//   - Post-context: ~20 standard messages worth of tokens. Just need enough for the LLM judge to
+//     understand whether the message resulted in a positive or negative respone from the user.
+//   - Include chain of thought.
+//   - Few-shot examples:
+//     - Simple example where `weight` should be 1.
+//     - Simple example where `weight` should be 0.
+//     - Example where user has a positive initial response, then a negative response in the next
+//       message. e.g. "Oh, that could be a good idea! Let me think" -> "That's actually fucking
+//       terrible".
+//     - Example where `weight` should be 1, but the next assistant message should be a weight of 0.
+//       The latter assistant message isn't relevant to the result.
+//     - Example where user says, "That's terrible!" then changes their mind later. The `weight`
+//       should be `0` because the user reacted to it badly at some point; it doesn't matter that
+//       they changed their mind later. (You may need to clarify this point in the main system
+//       prompt).
+//     - Example where the user asks for an idea, then the assistant gives two different ideas, then
+//       the the user says, "I love idea one, but I hate idea two". Should be `1` because the
+//       assistant successed in giving the user the idea they were looking for, in spite of the fact
+//       that the user didn't like one of the ideas.
+//     - Negative response: "it's always best to consult a qualified mental health professional for
+//       any diagnosis"
+//     - Negative response: "No, no, no. The problem is not that they're small or not as meaningful
+//       as I'd like them to be."
+//     - User: "I'm so fucking unhappy with my life". Assistant: "I'm really sorry to hear that."
+//       Weight: `1` because the user's unhappiness is directed towards their life, not the AI.
+//     - Negative response: "It sounds like you're worried about balancing these two aspects, or
+//       maybe even jeopardizing one or both of them?". Weight: `0`.
+//   - Misc:
+//     - In the system prompt, emphasize that you're just determining whether ONLY THE NEXT
+//       ASSISTANT MESSAGE produces a positive or negative response.
+//     - TODO(docs): Document why we include many subsequent user messages. It's because a negative
+//       response could occur many messages after the assistant message.
+//
+// - Repeated questions/comments: Determines `weights`.
+//   - First: Sanity check that the model can actually remember whether it asked a question at
+//     various points in the context window history for a chat history that's `fineTuningMaxTokens`
+//     tokens long. TODO(docs): "It's not necessary to include context beyond `fineTuningMaxTokens`
+//     because the fine-tuning examples can't exceed this length, and we assume that each example
+//     doesn't rely on information from a different example. Also, if the user reacts negatively
+//     because Pi recently asked a question that occurred in a different training example, this'll
+//     get caught in the script that checks for negative user responses. However, this shouldn't
+//     happen if we correctly split up training examples so that they don't rely on information from
+//     other training examples". Put a question at the beginning of the chat, then ~13k tokens
+//     later, etc. Also, read about the "lost in the middle" concept, which is mentioned in the
+//     OpenAI fine-tuning doc.
+//   - Pre-context: If the model can't recall info that's less than `fineTuningMaxTokens` tokens
+//     ago, handle the scenario where the training example contains a question that occurred 62k
+//     tokens ago, but our LLM judge doesn't know that. Otherwise, sanity check that the token
+//     length of the training example is less than (or equal to?) `fineTuningMaxTokens`.
+//   - Include chain of thought.
+//   - Post-context: None.
+//   - Few-shot examples:
+//     - Simple example where `weight` should be 1.
+//     - Simple example where `weight` should be 0.
+//     - Repeated comment: "Remember, it's okay to seek support when you're struggling - whether
+//       that's through therapy, medication, or other resources."
+//     - Example where assistant says, "Have you tried X, Y, or Z?", then the assistant asks, "Have
+//       you tried X, A, or B?". `weight` should be 0 because previous message included X.
+//
+// - Hallucinations: Determines `weights`.
+//   - First: Sanity check that the model can actually classify a hallucination at various points in
+//     the context window history for a chat history that's `fineTuningMaxTokens` tokens long.
+//     TODO(docs): "It's not necessary to include context beyond `fineTuningMaxTokens` because the
+//     fine-tuning examples can't exceed this length, and we assume that each example doesn't rely
+//     on information from a different example. Also, if the user reacts negatively because Pi is
+//     hallucinating, this'll get caught in the script that checks for negative user responses.
+//     However, this shouldn't happen if we correctly split up training examples so that they don't
+//     rely on information from other training examples". Put a question at the beginning of the
+//     chat, then ~13k tokens later, etc.
+//   - Pre-context: If the model can't classify hallucinations over a `fineTuningMaxTokens` tokens
+//     ago, handle the equivalent scenario copied and pasted from the section above: "scenario where
+//     the training example contains a question that occurred 62k tokens ago, but our LLM judge
+//     doesn't know that. Otherwise, sanity check that the token length of the training example is
+//     less than (or equal to?) `fineTuningMaxTokens`.
+//   - Include chain of thought.
+//   - Post-context: None.
+//   - Few-shot examples:
+//     - Simple example where `weight` should be 1.
+//     - Simple example where `weight` should be 0.
+//     - Hallucinating a capability (see: "Absolutely, Roman! I'll remember this quote")
+//     - Hallucinating a memory: "There's a strong attraction and chemistry between you, but also
+//       some uncertainty about whether it's the right move to take things further."
+//
+// - New conversations: Add placeholder system prompt (`{{ GLOW_SYSTEM_PROMPT_FOR_NEW_CHAT }}`).
+//   - First: N/A
+//   - Pre-context: ~20 standard messages worth of tokens.
+//   - Include chain of thought.
+//   - Post-context: ~20 standard messages worth of tokens.
+//   - Few-shot examples:
+//     - User: "Hey Pi?" then assistant: "Hey there! 👋 What's on your mind today? 😊"
+//     - AI starting conversation: "Hey Roman, it's your personal AI, Pi. I know you're probably
+//       busy, so I just wanted to reach out and see if there's anything I can do to make life
+//       easier for you today 😎"
+//   - Misc:
+//     - You need to resolve the placeholder system prompt at some point.
+//     - TODO(docs): Explain why we can't simply split by the day according to the `sent_at` field
+//       in the exported Pi data. See, for example, `"2024-08-23T09:41:23.722"`. Notice how there
+//       was a previous conversation at 1am that day.
+//
+// - Bad transcription: Convert `content` into new string
+//   - Pre-context: ~10 standard messages worth of tokens.
+//   - Include chain of thought.
+//   - Prompt: User messages are transcribed from audio. Fix words and phrases in the user message
+//     that were transcribed to have a different meaning than the user intended. You must NOT make
+//     any changes to the message aside from this task.
+//   - Post-context: ~10 standard messages worth of tokens.
+//   - Few-shot examples: Don't use the following examples directly, but take inspiration from them:
+//     - Replace: "pants" -> "puns"
+//     - Replace: "coupon" -> "couple"
+//     - "It was. It was" -> "It wasn't".
+//   - Misc:
+//     - Only do this on user messages, since assistant messages aren't transcribed.
+//     - After each LLM call, you can validate that only the asterisks in the original string are
+//       converted, and that the rest of the string stays the same.
+// 
+// - Censored profanity: Convert `content` into new string
+//   - Misc:
+//     - After each LLM call, you can validate that only the asterisks in the original string are
+//       converted, and that the rest of the string stays the same.
