@@ -2,11 +2,22 @@ import { ChatCompletionAssistantMessageParam, ChatCompletionMessageParam, ChatCo
 import { encoding_for_model, Tiktoken, TiktokenModel } from "tiktoken";
 import { CONTEXT_WINDOWS, MODEL_FINE_TUNING_INFO, todoStatusPriorityMap } from "./constants";
 import OpenAI, { toFile } from "openai";
-import { ExportedPiMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus, TrainingDataset } from "./types";
+import { AssistantFineTuningMessage as FineTuningAssistantMessage, ExportedPiMessage, FineTuningMessage, ParsedExportedPiData, TODO, TODOMessage, TODOStatus, UserFineTuningMessage as FineTuningUserMessage, FineTuningExample, TrainingDataExample } from "./types";
 import { createReadStream, existsSync, mkdirSync, readFile, readFileSync, writeFileSync } from "fs";
 import * as readline from 'readline';
 import { appendFile } from "fs/promises";
 import { createHash } from "crypto";
+
+export const trainingDataMessageToChatMessage = (
+  message: TrainingDataExample[0]
+): ChatCompletionMessageParam => {
+  if ('weight' in message) {
+    // Remove the weight property
+    const { weight, ...rest } = message;
+    return rest
+  }
+  return message;
+};
 
 export const getInflectionResponse = async (
   truncatedMessages: ChatCompletionMessageParam[],
@@ -56,7 +67,7 @@ export const getInflectionResponse = async (
 }
 
 // Taken from: https://cookbook.openai.com/examples/chat_finetuning_data_prep
-export const estimateTrainingCost = (dataset: TrainingDataset, model: TiktokenModel): number => {
+export const estimateTrainingCost = (dataset: Array<TrainingDataExample>, model: TiktokenModel): number => {
   const targetEpochs = 3;
   const minTargetExamples = 100;
   const maxTargetExamples = 25000;
@@ -78,8 +89,8 @@ export const estimateTrainingCost = (dataset: TrainingDataset, model: TiktokenMo
 
   let numTokens = 0;
   const encoding = encoding_for_model(model)
-  for (const { messages } of dataset) {
-    numTokens += estimateTokensForMessages(messages, encoding);
+  for (const messages of dataset) {
+    numTokens += estimateTokensForMessages(messages.map(trainingDataMessageToChatMessage), encoding);
   }
 
   const estimatedCost = (baseCostPerMillionTokens / 1e6) * numTokens * numEpochs;
@@ -88,7 +99,7 @@ export const estimateTrainingCost = (dataset: TrainingDataset, model: TiktokenMo
 };
 
 
-export const validateTrainingDataset = (dataset: TrainingDataset, model: TiktokenModel): void => {
+export const validateTrainingDataset = (dataset: Array<TrainingDataExample>, model: TiktokenModel): void => {
   const formatErrors: { [key: string]: number } = {};
   
   if (dataset.length < 10) {
@@ -96,19 +107,13 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
   }
 
   const encoding = encoding_for_model(model)
-  for (const ex of dataset) {
-    if (typeof ex !== 'object' || Array.isArray(ex)) {
-      formatErrors["data_type"] = (formatErrors["data_type"] || 0) + 1;
-      continue;
-    }
-    
-    const messages = ex.messages;
-    if (!messages) {
+  for (const example of dataset) {    
+    if (example.length === 0) {
       formatErrors["missing_messages_list"] = (formatErrors["missing_messages_list"] || 0) + 1;
       continue;
     }
 
-    const numTokens = estimateTokensForMessages(messages, encoding);
+    const numTokens = estimateTokensForMessages(example.map(trainingDataMessageToChatMessage), encoding);
     const {fineTuningMaxTokens} = MODEL_FINE_TUNING_INFO[model];
     // Check if the example is greater than the max token size for a fine-tuning example. This is
     // necessary because of the following limitation in OpenAI's fine-tuning process: "Examples
@@ -133,7 +138,7 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
       // example is too large.
     }
     
-    for (const message of messages) {
+    for (const message of example) {
       if (!("role" in message) || !("content" in message)) {
         formatErrors["message_missing_key"] = (formatErrors["message_missing_key"] || 0) + 1;
       }
@@ -150,7 +155,7 @@ export const validateTrainingDataset = (dataset: TrainingDataset, model: Tiktoke
       }
     }
     
-    if (!messages.some(message => message.role === "assistant")) {
+    if (!example.some(message => message.role === "assistant")) {
       formatErrors["example_missing_assistant_message"] = (formatErrors["example_missing_assistant_message"] || 0) + 1;
     }
   }
@@ -176,8 +181,8 @@ export const makeFileName = (baseName: string, extension: string): string => {
   return `${baseName}_${year}${month}${day}_${hours}${minutes}${seconds}.${extension}`;
 }
 
-export const uploadFileToOpenAI = async (openai: OpenAI, filename: string, dataset: TrainingDataset): Promise<FileObject> => {
-  const jsonl = dataset.map(entry => JSON.stringify(entry)).join('\n');
+export const uploadFileToOpenAI = async (openai: OpenAI, filename: string, dataset: Array<TrainingDataExample>): Promise<FileObject> => {
+  const jsonl = dataset.map(entry => JSON.stringify({messages: entry})).join('\n');
 
   const file = await toFile(new Blob([jsonl], { type: 'application/json' }), filename);
 
@@ -385,6 +390,8 @@ export const estimateTokensForMessages = (
   messages: ChatCompletionMessageParam[],
   encoding: Tiktoken
 ): number => {
+  // TODO(later): do a strict check here for extraneous fields in `messages`. document why.
+
   const tokensPerMessage = 3;
   const tokensPerName = 1;
   let numTokens = 0;
@@ -404,6 +411,54 @@ export const estimateTokensForMessages = (
 };
 
 export const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+export const isFineTuningUserMessage = (message: FineTuningMessage): message is FineTuningUserMessage => {
+  const expectedKeys = ['role', 'content'];
+  const isUserMessage = (
+    message.role === 'user' &&
+    typeof message.content === 'string' &&
+    Object.keys(message).every(key => expectedKeys.includes(key)) &&
+    expectedKeys.every(key => key in message)
+  )
+  return isUserMessage;
+};
+
+export const isFineTuningAssistantMessage = (message: FineTuningMessage): message is FineTuningAssistantMessage => {
+  const expectedKeys = ['role', 'content', 'positiveResponse'];
+  return (
+    message.role === 'assistant' &&
+    typeof message.content === 'string' &&
+    (typeof message.positiveResponse === 'boolean' || message.positiveResponse === null) &&
+    Object.keys(message).every(key => expectedKeys.includes(key)) &&
+    expectedKeys.every(key => key in message)
+  );
+};
+
+export const isFineTuningExample = (obj: any): obj is FineTuningExample => {
+  return (
+    typeof obj === 'object' &&
+    obj !== null &&
+    Array.isArray(obj.messages) &&
+    obj.messages.every(
+      (msg: FineTuningMessage) =>
+        isFineTuningUserMessage(msg) || isFineTuningAssistantMessage(msg)
+    )
+  );
+};
+
+// TODO(later): update this if necessary
+export const getWeight = (message: FineTuningAssistantMessage): 0 | 1 => {
+  if (message.positiveResponse === false || message.positiveResponse === null) {
+    return 0
+  }
+  return 1
+}
+
+export const convertToChatCompletionMessageParam = (message: FineTuningMessage): ChatCompletionMessageParam => ({
+  role: message.role,
+  content: message.content
+});
+
 
 // TODO(later-later): in production, make sure you don't call tiktoken's encoding function on the
 // whole chat history. it's very, very slow. actually, just make sure not to use

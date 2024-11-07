@@ -2,13 +2,14 @@ import { TRAINING_DATASET } from "./training-data";
 import { createInterface } from 'readline';
 import { OpenAI } from 'openai';
 import dotenv from 'dotenv';
-import { MODEL_NAME } from "./constants";
 import { ChatCompletionChunk, ChatCompletionMessageParam } from "openai/resources";
 import { sleep } from "../../lib/utils";
-import { getInflectionResponse } from "./utils";
+import { getInflectionResponse } from "../utils";
 
 
 dotenv.config();
+
+const modelName = "ft:gpt-4o-mini-2024-07-18:personal::AQkY0wDW"
 
 const messages = TRAINING_DATASET[0].messages
 
@@ -46,8 +47,8 @@ interface InflectionChatCompletionMetadata {
 
     const [openAIResponse, inflectionResponse] = await Promise.all([
       openai.chat.completions.create({
-        model: MODEL_NAME,
-        messages: contextualMessages
+        model: modelName,
+        messages: [{role: 'user', content: ':('}]
       }),
       getInflectionResponse(contextualMessages, 'inflection_3_pi')
     ]);

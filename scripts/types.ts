@@ -1,6 +1,6 @@
-import { ChatCompletionMessageParam } from "openai/resources";
+import { ChatCompletionAssistantMessageParam, ChatCompletionMessageParam } from "openai/resources";
 
-export type TrainingDataset = Array<{messages: Array<ChatCompletionMessageParam>}>
+export type TrainingDataExample = Array<ChatCompletionMessageParam | ChatCompletionAssistantMessageParam & { weight: 0 | 1 }>
 
 export type ExportedPiMessage = {
   text: string;
@@ -51,6 +51,23 @@ export type TODOMessage = {
   content: string
   nextStep: TODOStatus
   weight: 0 | 1
+}
+
+export type UserFineTuningMessage = {
+  role: 'user'
+  content: string
+}
+
+export type AssistantFineTuningMessage = {
+  role: 'assistant'
+  content: string
+  positiveResponse: boolean | null
+}
+
+export type FineTuningMessage = UserFineTuningMessage | AssistantFineTuningMessage
+
+export type FineTuningExample = {
+  messages: Array<FineTuningMessage>
 }
 
 export type TODO = {

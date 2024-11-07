@@ -62,8 +62,8 @@ if 'user_data' in data and 'messages' in data['user_data']:
 
     now = datetime.now()
     timestamp = now.strftime("%Y%m%d_%H%M%S")
-    clean_data_file_path = Path(f"scripts/fine-tune/data/{make_file_name(timestamp, 'clean', 'jsonl')}")
-    pi_data_file_path = Path(f"scripts/fine-tune/data/{make_file_name(timestamp, 'pi', 'jsonl')}")
+    clean_data_file_path = Path(f"scripts/fine-tune/data/{make_file_name(timestamp, 'clean', 'json')}")
+    pi_data_file_path = Path(f"scripts/fine-tune/data/{make_file_name(timestamp, 'pi', 'json')}")
     with pi_data_file_path.open('w') as output_file:
         json.dump({'messages': messages}, output_file)
         output_file.write('\n')

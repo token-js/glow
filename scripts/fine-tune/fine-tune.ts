@@ -1,19 +1,52 @@
 import readline from "readline";
 import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
-import { TRAINING_DATASET } from "./training-data";
 import { get_encoding, encoding_for_model, TiktokenModel } from "tiktoken";
 import OpenAI, { toFile } from "openai";
 import { FileObject } from "openai/resources";
-import { MODEL_FINE_TUNING_INFO, MODEL_NAME } from "./constants";
+import { MODEL_FINE_TUNING_INFO, MODEL_NAME } from "../constants";
 import { sleep } from "../../lib/utils";
-import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainingDataset } from "./utils";
+import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainingDataset } from "../utils";
+import { readFileSync } from "fs";
+import { FineTuningExample, TODO, TrainingDataExample as TrainingDataExample } from "../types";
+import { convertToChatCompletionMessageParam, getWeight, isFineTuningAssistantMessage, isFineTuningExample } from "../utils";
+
+const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
 
 ;(async () => {
   const openai = new OpenAI()
 
-  validateTrainingDataset(TRAINING_DATASET, MODEL_NAME)
+  const data = JSON.parse(readFileSync(dataFilePath, 'utf-8'))
+  
+  if (!isFineTuningExample(data)) {
+    throw new Error(`TODO(docs)`)
+  }
+  
+  const trainingData: Array<TrainingDataExample> = []
+  for (let i = 0; i < data.messages.length; i++) {
+    const message = data.messages[i]
+    if (isFineTuningAssistantMessage(message) && getWeight(message) === 1) {
+      const previousMessages = data.messages.slice(0, i).map(convertToChatCompletionMessageParam).map(message => {
+        // TODO(docs): weight = 0 because...
+        if (message.role === 'assistant') {
+          return {
+            ...message,
+            weight: 0
+          }
+        }
+        return message
+      })
+      
+      const messageWithWeight = {
+        ...convertToChatCompletionMessageParam(message),
+        weight: 1
+      }
+      trainingData.push([...previousMessages, messageWithWeight])
+    }
+  }
 
-  const cost = estimateTrainingCost(TRAINING_DATASET, MODEL_NAME);
+  validateTrainingDataset(trainingData, MODEL_NAME)
+
+  const cost = estimateTrainingCost(trainingData, MODEL_NAME);
 
   const rl = readline.createInterface({
     input: process.stdin,
@@ -24,7 +57,7 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
       console.log("Training confirmed. Proceeding...");
 
       const filename = makeFileName('training', 'jsonl')
-      const fileObject = await uploadFileToOpenAI(openai, filename, TRAINING_DATASET)
+      const fileObject = await uploadFileToOpenAI(openai, filename, trainingData)
       console.log('Uploaded file: ', fileObject.filename)
 
       let fineTune = await openai.fineTuning.jobs.create({
@@ -39,15 +72,21 @@ import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainin
       while (fineTune.status !== 'succeeded' && fineTune.status !== 'failed' && fineTune.status !== 'cancelled') {
         fineTune = await openai.fineTuning.jobs.retrieve(fineTune.id);
 
-        console.log(`Fine-tune status: ${fineTune.status}`)
+        const estimatedFinish = fineTune.estimated_finish ? `Estimated finish: ${fineTune.estimated_finish}` : ''
+        console.log(`Fine-tune status: ${fineTune.status}. ${estimatedFinish}`)
 
         await sleep(5000)
       }
 
       console.log(`Fine-tune status: ${fineTune.status}`)
-      console.log(`Fine-tuned model: ${fineTune.fine_tuned_model}`)
+      if (fineTune.status === 'failed') {
+        const errorMessage = fineTune.error ? fineTune.error.message : `Failed for unknown reason.`
+        throw new Error(errorMessage)
+      } else if (fineTune.status === 'succeeded') {
+        console.log(`Fine-tuned model: ${fineTune.fine_tuned_model}`)
+      }
     } else {
-      console.log("Training cancelled.");
+      console.log("Training job not submitted.");
     }
     rl.close();
   });

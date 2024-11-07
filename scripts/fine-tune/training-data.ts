@@ -1,5 +1,4 @@
 import {ChatCompletionAssistantMessageParam, ChatCompletionMessageParam, ChatCompletionUserMessageParam} from 'openai/resources/chat/completions';
-import { TrainingDataset } from '../types';
 
 
 // TODO(later): rm TrainingDataset type?
@@ -8,7 +7,7 @@ import { TrainingDataset } from '../types';
 // 4o mini and myself. The responses are all Pi's.
 // 
 // TODO(later-later): should we use this as actual training data? if so, read through it all.
-export const TRAINING_DATASET: TrainingDataset = [{messages: [
+export const TRAINING_DATASET: Array<{messages: Array<ChatCompletionMessageParam>}> = [{messages: [
   {
     "role": "assistant",
     "content": "Hey Alice! I'm Charlotte, your AI companion. How are you doing today?"
