@@ -1,31 +1,20 @@
 from __future__ import annotations
 
-import asyncio
 import os
-from dataclasses import dataclass
-from typing import Any, Awaitable, MutableSet
-
-import httpx
-from livekit.agents import llm
-
-import openai
-from openai.types.chat import ChatCompletionChunk, ChatCompletionMessageParam
-from openai.types.chat.chat_completion_chunk import Choice
-
-from livekit.plugins.openai.log import logger
-from livekit.plugins.openai.utils import AsyncAzureADTokenProvider, build_oai_message
-from livekit.plugins.openai.llm import LLMOptions, _build_oai_context, LLMStream, ChatModels, CerebrasChatModels, XAIChatModels, GroqChatModels, DeepSeekChatModels, OctoChatModels, PerplexityChatModels, TogetherChatModels, TelnyxChatModels
-
-import aiohttp
 import asyncio
-import json
-import uuid
-from typing import AsyncGenerator, List, Dict, Optional
-from typing_extensions import Literal
+import logging
+
+from dataclasses import dataclass
+from typing import Any, MutableSet
 from livekit.agents import llm
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice, ChoiceDelta
-from openai import OpenAI
-from server.agent.index import stream_inflection_response
+from openai.types.chat import ChatCompletionChunk
+from livekit.plugins.openai.llm import _build_oai_context, LLMStream, ChatModels
+from livekit.agents import llm
+from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
+from server.api.routes.chat import stream_and_update_chat
+from typing import Any, Coroutine
+
+logger = logging.getLogger("voice-agent")
 
 class AsyncStream:
     def __init__(self, async_gen):
@@ -37,29 +26,55 @@ class AsyncStream:
     async def aclose(self):
         await self._async_gen.aclose()
 
-async def get_stream(messages: List[ChatCompletionMessageParam], opts: LLMOptions):
-    async_gen = stream_inflection_response(
-        token=os.getenv("INFLECTION_API_KEY"),
-        context=messages,
-        config=opts.model,
-    )
-    return AsyncStream(async_gen)
+
+def get_next_item(it):
+    try:
+        return next(it)
+    except StopIteration:
+        return None
 
 
-class InflectionLLM(llm.LLM):
+def convert_stream_to_coroutine(messages, chat_id, user_id) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
+    logger.info("calling stream_wrapper")
+    async def wrapper():
+        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id)
+        it = iter(sync_gen)
+
+        async def async_gen():
+            while True:
+                # Use a helper function to handle StopIteration
+                s = await asyncio.get_event_loop().run_in_executor(None, get_next_item, it)
+                if s is None:
+                    break
+                yield s
+
+        return AsyncStream(async_gen())
+
+    return wrapper()
+
+
+@dataclass
+class Options:
+    model: str | ChatModels
+    user: str | None
+    chat_id: str | None
+    temperature: float | None
+
+class LLM(llm.LLM):
     def __init__(
         self,
         *,
         model: str,
         api_key: str | None = None,
-        user: str | None = None,
+        user_id: str,
+        chat_id: str,
         temperature: float | None = None,
     ) -> None:
-        api_key = api_key or os.environ.get("INFLECTION_API_KEY")
+        api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if api_key is None:
-            raise ValueError("Inflection API key is required")
+            raise ValueError("OpenAI API key is required")
 
-        self._opts = LLMOptions(model=model, user=user, temperature=temperature)
+        self._opts = Options(model=model, user=user_id, chat_id=chat_id, temperature=temperature)
         self._running_fncs: MutableSet[asyncio.Task[Any]] = set()
 
     def chat(
@@ -71,16 +86,12 @@ class InflectionLLM(llm.LLM):
         n: int | None = 1,
         parallel_tool_calls: bool | None = None,
     ) -> "LLMStream":
+        logger.info("chat function")
+
         if fnc_ctx and len(fnc_ctx.ai_functions) > 0:
           raise ValueError('Functions are not supported')
 
         messages = _build_oai_context(chat_ctx, id(self))
+        stream = convert_stream_to_coroutine(messages=messages, chat_id=self._opts.chat_id, user_id=self._opts.user)
 
-        # client = OpenAI(
-        #     api_key=os.environ.get("OPENAI_API_KEY"),
-        # )        
-        # stream = client.chat.completions.create(
-        #     messages=messages, model='gpt-4o-mini', stream=True
-        # )
-
-        return LLMStream(oai_stream=get_stream(messages, self._opts), chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
+        return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)

@@ -15,7 +15,10 @@ from server.api.analytics import track_sent_message
 from fastapi.responses import JSONResponse
 from server.agent.index import generate_response
 import asyncio
+import logging
+import requests
 
+logger = logging.getLogger("voice-agent")
 
 class ClientAttachment(BaseModel):
     name: str
@@ -40,13 +43,9 @@ class ClientMessage(BaseModel):
 class Request(BaseModel):
     messages: List[ClientMessage]
     chat_id: str
-
+    
 
 router = APIRouter()
-
-client = OpenAI(
-    api_key=os.environ.get("OPENAI_API_KEY"),
-)
 
 
 def convert_to_openai_messages(
@@ -116,12 +115,41 @@ async def update_chat(
 
     await prisma.disconnect()
 
-def stream_text(
+def call_update_chat(
+    messages: List[dict], 
+    agent_response: str, 
+    user_message_timestamp: datetime,
+    agent_message_timestamp: datetime,
+    chat_id: str
+):
+    new_user_message = messages.pop()
+    while new_user_message["role"] == "system":
+        new_user_message = messages.pop()
+    new_user_message = message_to_fixed_string_content(new_user_message)["content"]
+    
+    data = {
+        'new_user_message': new_user_message,
+        'new_agent_message': agent_response,
+        'user_message_timestamp': user_message_timestamp.timestamp(),
+        'agent_message_timestamp': agent_message_timestamp.timestamp(),
+        'chat_id': chat_id
+    }
+    headers = {
+        'Content-Type': 'application/json',
+        'Authorization': f"Bearer {os.environ.get('CRON_SECRET')}"
+    }
+    requests.post(f"https://{os.environ.get('EXPO_PUBLIC_API_URL')}/api/updateChat", json=data, headers=headers)
+
+def stream_and_update_chat(
     messages: List[dict],
     chat_id: str,
-    chat: models.Chats,
     user_id: str,
 ):
+    user_message_timestamp = datetime.now()
+    client = OpenAI(
+        api_key=os.environ.get("OPENAI_API_KEY"),
+    )
+
     # This implementation uses the vercel text streaming protocol
     # https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol#text-stream-protocol
     # We could also use the data streaming protocol. The data streaming protocol is better for sending structured data
@@ -131,7 +159,6 @@ def stream_text(
     # https://github.com/vercel/ai/blob/main/examples/next-fastapi/api/index.py#L72
     stream = None
     agent_response = ""
-    message_history = messages
     stream = asyncio.run(
         generate_response(
             llm=client, conversation=messages,
@@ -141,20 +168,20 @@ def stream_text(
     if stream is not None:
         agent_response = ""
         for chunk in stream:
+            yield chunk
             for choice in chunk.choices:
-                if choice.finish_reason == "stop":
-                    break
-                else:
+                if choice.finish_reason != "stop":
                     content = choice.delta.content
                     agent_response += content
-                    yield "{text}".format(text=content)
 
-    asyncio.run(
-        update_chat(
-            message_history,
-            chat_id,
-            agent_response,
-        )
+    # Append new messages to the chat
+    agent_message_timestamp = datetime.now()
+    call_update_chat(
+        messages=messages,
+        agent_response=agent_response,
+        chat_id=chat_id,
+        user_message_timestamp=user_message_timestamp,
+        agent_message_timestamp=agent_message_timestamp
     )
 
     # Would be nice to record usage here
@@ -163,6 +190,21 @@ def stream_text(
         chat_id=chat_id,
     )
 
+
+def stream_text(
+    messages: List[dict],
+    chat_id: str,
+    user_id: str,
+):
+    stream = stream_and_update_chat(messages, chat_id, user_id)
+    for chunk in stream:
+        for choice in chunk.choices:
+            if choice.finish_reason == "stop":
+                break
+            else:
+                content = choice.delta.content
+                yield "{text}".format(text=content)
+    
 
 @router.post("/api/chat")
 async def handle_chat_data(request: Request, user=Depends(authorize_user)):
@@ -205,12 +247,57 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
         stream_text(
             chat_history,
             chat_id,
-            chat,
             user_id,
         ),
         media_type="text/event-stream"
     )
     return response
+
+
+class UpdateChatRequest(BaseModel):
+    new_user_message: str
+    user_message_timestamp: float
+    new_agent_message: str
+    agent_message_timestamp: float
+    chat_id: str
+
+@router.post("/api/updateChat")
+async def handle_update_chat(request: UpdateChatRequest):
+    prisma = Prisma()
+    await prisma.connect()
+
+    async with prisma.tx():
+        # Get the last user message (pop if the last message is a system message)
+        new_user_message = request.new_user_message
+        agent_response = request.new_agent_message
+        chat_id = request.chat_id
+
+        # Create new user chat message
+        await prisma.chatmessages.create(
+            data=types.ChatMessagesCreateInput(
+                chatId=chat_id,
+                role=enums.OpenAIRole.user,
+                content=new_user_message,
+                created=datetime.fromtimestamp(request.user_message_timestamp)
+            )
+        )
+
+        # Create new agent chat message
+        await prisma.chatmessages.create(
+            data=types.ChatMessagesCreateInput(
+                chatId=chat_id,
+                role=enums.OpenAIRole.assistant,
+                content=agent_response,
+                created=datetime.fromtimestamp(request.agent_message_timestamp)
+            )
+        )
+
+        await prisma.chats.update(
+            where={"id": chat_id},
+            data=types.ChatsUpdateInput(lastMessageTime=datetime.now()),
+        )
+
+    await prisma.disconnect()
 
 
 @router.get("/api/health")
