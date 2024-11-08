@@ -63,7 +63,7 @@ export const LoadingChatInterface = forwardRef<ChatInterfaceHandle, Props>(
     }
 
     if (!chat) {
-      return <ActivityIndicator />;
+      return <></>
     } else {
       return (
         <ChatInterface

@@ -36,9 +36,6 @@ export const HomeScreen: React.FC = () => {
   const router = useRouter();
   const onToggle = () => setMode(mode === 'text' ? 'voice' : 'text');
 
-  const [agentAudioLevel, setAgentAudioLevel] = useState<number>(0.0);
-  const [userAudioLevel, setUserAudioLevel] = useState<number>(0.0);
-
   const session = useSupabaseSession();
   const chatInputOpacity = useRef(new Animated.Value(mode === 'text' ? 1 : 0)).current;
   const waveformOpacity = useRef(new Animated.Value(mode === 'voice' ? 1 : 0)).current;
@@ -126,8 +123,6 @@ export const HomeScreen: React.FC = () => {
             {mode === 'voice' ? (
                 <VoiceInterface
                   session={session.session}
-                  setUserAudioLevel={setUserAudioLevel}
-                  setAgentAudioLevel={setAgentAudioLevel}
                 />
             ) : (
               <LoadingChatInterface ref={chatRef} session={session.session} userId={session.session.user.id} />
@@ -138,19 +133,6 @@ export const HomeScreen: React.FC = () => {
             <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
             
             <View style={styles.inputWrapper}>
-              <Animated.View
-                style={[
-                  styles.overlayContainer,
-                  {
-                    opacity: waveformOpacity,
-                    zIndex: mode === 'voice' ? 1 : 0,
-                  },
-                ]}
-                pointerEvents={mode === 'voice' ? 'auto' : 'none'}
-              >
-                <Waveform audioLevel={userAudioLevel} />
-              </Animated.View>
-
               <Animated.View
                 style={[
                   styles.overlayContainer,

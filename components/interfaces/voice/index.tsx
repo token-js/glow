@@ -4,39 +4,78 @@ import {
   AudioSession,
   LiveKitRoom,
   registerGlobals,
-  useSpeakingParticipants,
+  useLocalParticipant,
+  useRemoteParticipant,
 } from '@livekit/react-native';
-import { Room, Track } from 'livekit-client';
+import { ParticipantKind } from 'livekit-client';
 import useAxios from 'axios-hooks'
-import useFetch from './fetch';
 import { Session } from '@supabase/supabase-js';
-import { supabase } from '../../../lib/supabase';
-import { Button } from 'react-native';
+import { ActivityIndicator, Button, View } from 'react-native';
 
 registerGlobals();
 
-type AudioTrackerProps = {
-  setUserAudioLevel: React.Dispatch<React.SetStateAction<number>>
-  setAgentAudioLevel: React.Dispatch<React.SetStateAction<number>>
+const RoomConnected = ({ setConnected, connected }: { setConnected: React.Dispatch<React.SetStateAction<boolean>>, connected: boolean }) => {
+  return (<Button 
+    title={'End Chat'} 
+    onPress={() => setConnected(!connected)}  
+  />)
 }
 
-const AudioTracker: React.FC<AudioTrackerProps> = ({ setUserAudioLevel, setAgentAudioLevel }) => {
-  const participants = useSpeakingParticipants()
-
-  useEffect(() => {
-    console.log(participants)
-
-    const agent = participants.find((speaker) => speaker.isAgent)
-    const user = participants.find((speaker) => !speaker.isAgent)
-
-    setUserAudioLevel(user?.audioLevel ?? 0)
-    setAgentAudioLevel(agent?.audioLevel ?? 0)
-  }, [participants])
-
-  return <></>
+const RoomDisconnected = ({ setConnected, connected }: { setConnected: React.Dispatch<React.SetStateAction<boolean>>, connected: boolean }) => {
+  return (
+    <Button 
+      title={'Start Chat'} 
+      onPress={() => setConnected(!connected)}  
+    />
+  )
 }
 
-export const VoiceInterface: React.FC<AudioTrackerProps & { session: Session }> = ({ session, setUserAudioLevel, setAgentAudioLevel }) => {
+const RoomConnecting = () => {
+  return (<ActivityIndicator />)
+}
+
+const RoomStatus = ({ connected, setConnected }: { connected: boolean, setConnected: React.Dispatch<React.SetStateAction<boolean>> }) => {
+  const local = useLocalParticipant()
+  const remote = useRemoteParticipant({
+    kind: ParticipantKind.AGENT,
+  })
+
+  const agentConnected = !!remote
+
+  const fetchConnectionStatus = () => {
+    if (agentConnected) {
+      return 'connected'
+    } else if (!connected) {
+      return 'disconnected'
+    } else {
+      return 'connecting'
+    }
+  }
+
+  const status: 'disconnected' | 'connecting' | 'connected' = fetchConnectionStatus()
+  
+  const fetchRoomStatus = () => {
+    if (status === 'connected') {
+      return <RoomConnected connected={connected} setConnected={setConnected} />
+    } else if (status === 'connecting') {
+      return <RoomConnecting />
+    } else if (status === 'disconnected') {
+      return <RoomDisconnected connected={connected} setConnected={setConnected} />
+    }
+  }
+
+  return (
+    <>
+      <View style={{
+        marginBottom: 0
+      }}>
+        {fetchRoomStatus()}
+      </View>
+    </>
+  )
+}
+
+export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
   const [connected, setConnected] = React.useState<boolean>(false)
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
   const [{ data: token, loading, error }] = useAxios(
@@ -70,17 +109,13 @@ export const VoiceInterface: React.FC<AudioTrackerProps & { session: Session }> 
 
   return (
     <>
-      <Button 
-        title={connected ? 'End Chat' : 'Start Chat'} 
-        onPress={() => setConnected(!connected)}  
-      />
       <LiveKitRoom
         serverUrl={wsURL}
         token={token}
         connect={token && connected}
         audio={true}
       >
-        <AudioTracker setUserAudioLevel={setUserAudioLevel} setAgentAudioLevel={setAgentAudioLevel} />
+        <RoomStatus connected={connected} setConnected={setConnected} />
       </LiveKitRoom>
     </>
   );

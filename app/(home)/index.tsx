@@ -1,6 +1,6 @@
 import 'react-native-url-polyfill/auto'
 import { useState, useEffect } from 'react'
-import { View, StyleSheet, ActivityIndicator } from 'react-native'
+import { View, StyleSheet, ActivityIndicator, Text } from 'react-native'
 import { Session, User } from '@supabase/supabase-js'
 import { supabase } from '../../lib/supabase'
 import Auth from '../../components/Auth'
@@ -60,7 +60,7 @@ export default function App() {
   } else if (settings === null) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" color="#0000ff" />
+        <ActivityIndicator size="large" />
       </View>
     )
   } else if (session) {
