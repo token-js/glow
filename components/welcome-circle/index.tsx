@@ -1,30 +1,36 @@
 // components/AnimatedCircle.tsx
-import React, { useRef, useEffect } from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Animated, StyleSheet, Text, View } from 'react-native';
 
 interface AnimatedCircleProps {
   text: string;
+  scale: number;
+  minScale?: number;
+  animationDuration?: number; // Optional prop to control animation speed
 }
 
-const AnimatedCircle: React.FC<AnimatedCircleProps> = ({ text }) => {
-  const scaleAnim = useRef(new Animated.Value(1)).current;
+const AnimatedCircle: React.FC<AnimatedCircleProps> = ({
+  text,
+  scale,
+  minScale = 0.5,
+  animationDuration = 300, // Default duration is 300ms
+}) => {
+  // Internal Animated.Value for smooth transitions
+  const animatedScale = useRef(new Animated.Value(scale)).current;
 
   useEffect(() => {
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(scaleAnim, {
-          toValue: 1.2,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(scaleAnim, {
-          toValue: 1,
-          duration: 2000,
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-  }, [scaleAnim]);
+    Animated.timing(animatedScale, {
+      toValue: scale,
+      duration: animationDuration,
+      useNativeDriver: true,
+    }).start();
+  }, [scale, animationDuration, animatedScale]);
+
+  // Add minScale to ensure minimum size
+  const finalScale = animatedScale.interpolate({
+    inputRange: [0, 1],
+    outputRange: [minScale, minScale + 1],
+  });
 
   return (
     <View style={styles.container}>
@@ -33,7 +39,7 @@ const AnimatedCircle: React.FC<AnimatedCircleProps> = ({ text }) => {
         style={[
           styles.circle,
           {
-            transform: [{ scale: scaleAnim }],
+            transform: [{ scale: finalScale }],
           },
         ]}
       />
@@ -61,15 +67,15 @@ const styles = StyleSheet.create({
     position: 'absolute', // Ensure circle is behind the text
   },
   textContainer: {
-    width: 150, // Same width as the circle
-    height: 150, // Same height as the circle
+    width: 150,
+    height: 150,
     justifyContent: 'center',
     alignItems: 'center',
     position: 'absolute',
   },
   circleText: {
     color: 'black',
-    fontSize: 20, // Adjust as needed
+    fontSize: 20,
     fontWeight: 'bold',
     textAlign: 'center',
   },

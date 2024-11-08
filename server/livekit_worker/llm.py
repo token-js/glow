@@ -8,11 +8,13 @@ from dataclasses import dataclass
 from typing import Any, MutableSet
 from livekit.agents import llm
 from openai.types.chat import ChatCompletionChunk
+from openai.types.chat import ChatCompletionChunk
 from livekit.plugins.openai.llm import _build_oai_context, LLMStream, ChatModels
 from livekit.agents import llm
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from server.api.routes.chat import stream_and_update_chat
 from typing import Any, Coroutine
+from dataclasses import dataclass
 
 logger = logging.getLogger("voice-agent")
 
@@ -59,7 +61,6 @@ class Options:
     user: str | None
     chat_id: str | None
     temperature: float | None
-
 class LLM(llm.LLM):
     def __init__(
         self,

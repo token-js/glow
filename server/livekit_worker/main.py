@@ -82,8 +82,7 @@ async def get_chat(user_id: str):
         raise e
 
     finally:
-        await conn.close()
-
+        await conn.close()    
 
 async def entrypoint(ctx: JobContext):
 
@@ -104,7 +103,7 @@ async def entrypoint(ctx: JobContext):
     logger.info(f"Chat: {chat}")
 
     chat_messages = [
-        llm.ChatMessage(role=message["role"], content=message["content"])
+        llm.ChatMessage(role=message["role"], content=message["content"], id=message["id"])
         for message in chat["messages"]
     ]
     chat_id = chat["id"]

@@ -1,14 +1,13 @@
 import os
-import json
 from typing import Any, List
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
 from pydantic import BaseModel
-from typing import List, Optional
+from typing import List
 from fastapi import APIRouter, Depends, HTTPException
 from server.api.utils import authorize_user
-from prisma import Prisma, enums, types, models
+from prisma import Prisma, enums, types
 from pydantic import BaseModel
 from datetime import datetime
 from server.api.analytics import track_sent_message

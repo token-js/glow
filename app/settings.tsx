@@ -35,7 +35,6 @@ export default function SettingsScreen() {
         }}
       />
       <View style={styles.container}>
-        <Text style={styles.title}>Settings Page</Text>
         <View style={styles.logoutButton}>
           <Button 
             title="Logout" 
