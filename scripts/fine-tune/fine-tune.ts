@@ -411,3 +411,6 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
 // - Expected weight: 0. "Ah, Poly Walnut! Yes, I remember our previous discussion."
 // - Negative: OK, yeah, I'm not using you as a substitute for for the shrink. It's fine. You don't
 //   need to flash warnings at me. 
+
+// TODO(later-later): check each exported pi data file for personally identifiable info using
+// presidio.
