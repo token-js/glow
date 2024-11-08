@@ -53,6 +53,7 @@
     "@babel/core": "^7.20.0",
     "@types/node": "^22.7.9",
     "@types/react": "~18.2.45",
+    "p-limit": "^6.1.0",
     "prisma": "5.17.0",
     "tiktoken": "^1.0.17",
     "ts-node": "^10.9.2",

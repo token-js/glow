@@ -405,13 +405,11 @@ if (!cleanDataFilePath || !piDataFilePath) {
   // }
 })()
 
-// TODO: bug: You aren't updating the next step when you `continue`.
+// TODO(later): bug: You aren't updating the next step when you `continue`.
 
-// TODO: When automating, create type predicates that ensure that the cleaned data conforms to the correct type. particularly, note the differences between user and assistant message types.
+// TODO(later): When automating, create type predicates that ensure that the cleaned data conforms to the correct type. particularly, note the differences between user and assistant message types.
 
-// TODO: replace "thisIsBad" with "negativeResponse"
-
-// TODO: Manual process:
+// TODO(later): Manual process:
 // 1. Assign a new value to `dataFilePath`.
 // 2. `npx vite-node print.ts`
 // 3. Replace censored profanity

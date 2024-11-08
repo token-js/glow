@@ -1,13 +1,13 @@
 import readline from "readline";
-import { ChatCompletionMessageParam } from "openai/resources/chat/completions";
+import { ChatCompletionMessageParam, ChatCompletionSystemMessageParam } from "openai/resources/chat/completions";
 import { get_encoding, encoding_for_model, TiktokenModel } from "tiktoken";
 import OpenAI, { toFile } from "openai";
 import { FileObject } from "openai/resources";
 import { MODEL_FINE_TUNING_INFO, MODEL_NAME } from "../constants";
 import { sleep } from "../../lib/utils";
-import { estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainingDataset } from "../utils";
-import { readFileSync } from "fs";
-import { FineTuningExample, TODO, TrainingDataExample as TrainingDataExample } from "../types";
+import { convertPiMessageToChatMessage, estimateTrainingCost, makeFileName, uploadFileToOpenAI, validateTrainingDataset } from "../utils";
+import { readdirSync, readFileSync } from "fs";
+import { FineTuningExample, RawExportedPiData, TODO, TrainingDataExample as TrainingDataExample } from "../types";
 import { convertToChatCompletionMessageParam, getWeight, isFineTuningAssistantMessage, isFineTuningExample } from "../utils";
 
 const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
@@ -15,34 +15,97 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
 ;(async () => {
   const openai = new OpenAI()
 
-  const data = JSON.parse(readFileSync(dataFilePath, 'utf-8'))
-  
-  if (!isFineTuningExample(data)) {
-    throw new Error(`TODO(docs)`)
-  }
-  
+  const piArray: Array<RawExportedPiData> = readdirSync('pi').map(fileName => JSON.parse(readFileSync(`pi/${fileName}`, 'utf-8')))
+  const syntheticData: Array<Array<ChatCompletionMessageParam>> = JSON.parse(readFileSync('synthetic/data.json', 'utf-8'))
+
   const trainingData: Array<TrainingDataExample> = []
-  for (let i = 0; i < data.messages.length; i++) {
-    const message = data.messages[i]
-    if (isFineTuningAssistantMessage(message) && getWeight(message) === 1) {
-      const previousMessages = data.messages.slice(0, i).map(convertToChatCompletionMessageParam).map(message => {
-        // TODO(docs): weight = 0 because...
-        if (message.role === 'assistant') {
-          return {
-            ...message,
-            weight: 0
+  for (const piData of piArray) {
+    const converted = piData.user_data.messages.map(convertPiMessageToChatMessage)
+    for (let i = 0; i < converted.length; i++) {
+      const message = converted[i]
+      if (message.role === 'assistant') {
+        const sliceStartIndex = Math.max(0, i - 3)
+        const previousMessages = converted.slice(sliceStartIndex, i).map(message => {
+          // TODO(docs): weight = 0 because...
+          if (message.role === 'assistant') {
+            return {
+              ...message,
+              weight: 0
+            }
           }
+          return message
+        })
+        if (previousMessages.some(m => m.role === 'user')) {   
+          const systemPrompt = `Your name is Pi. You are talking to ${piData.user_data.details.first_name}.`;
+          const systemMessage: ChatCompletionSystemMessageParam = {role: 'system', content: systemPrompt}
+          const messageWithWeight = {
+            ...message,
+            weight: 1
+          }
+          trainingData.push([...previousMessages, systemMessage, messageWithWeight])
         }
-        return message
-      })
-      
-      const messageWithWeight = {
-        ...convertToChatCompletionMessageParam(message),
-        weight: 1
       }
-      trainingData.push([...previousMessages, messageWithWeight])
     }
   }
+
+
+  const syntheticDataAiName = 'Charlotte'
+  const syntheticDataUserFirstName = 'Bob'
+  for (const messages of syntheticData) {
+    for (let i = 0; i < messages.length; i++) {
+      const message = messages[i]
+      if (message.role === 'assistant') {
+        const sliceStartIndex = Math.max(0, i - 3)
+        const previousMessages = messages.slice(sliceStartIndex, i).map(message => {
+          // TODO(docs): weight = 0 because...
+          if (message.role === 'assistant') {
+            return {
+              ...message,
+              weight: 0
+            }
+          }
+          return message
+        })
+        if (previousMessages.some(m => m.role === 'user')) {
+          const systemPrompt = `Your name is ${syntheticDataAiName}. You are talking to ${syntheticDataUserFirstName}.`;
+          const systemMessage: ChatCompletionSystemMessageParam = {role: 'system', content: systemPrompt}
+          const messageWithWeight = {
+            ...message,
+            weight: 1
+          }
+          trainingData.push([...previousMessages, systemMessage, messageWithWeight])
+        }
+      }
+    }
+  }
+
+  // const data = JSON.parse(readFileSync(dataFilePath, 'utf-8'))
+  
+  // if (!isFineTuningExample(data)) {
+  //   throw new Error(`TODO(docs)`)
+  // }
+  
+  // for (let i = 0; i < data.messages.length; i++) {
+  //   const message = data.messages[i]
+  //   if (isFineTuningAssistantMessage(message) && getWeight(message) === 1) {
+  //     const previousMessages = data.messages.slice(0, i).map(convertToChatCompletionMessageParam).map(message => {
+  //       // TODO(docs): weight = 0 because...
+  //       if (message.role === 'assistant') {
+  //         return {
+  //           ...message,
+  //           weight: 0
+  //         }
+  //       }
+  //       return message
+  //     })
+      
+  //     const messageWithWeight = {
+  //       ...convertToChatCompletionMessageParam(message),
+  //       weight: 1
+  //     }
+  //     trainingData.push([...previousMessages, messageWithWeight])
+  //   }
+  // }
 
   validateTrainingDataset(trainingData, MODEL_NAME)
 
@@ -171,9 +234,6 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
 //   then the user takes Pi's advice and sends the apology. Expected behavior: Pi should probably
 //   tell the user to consider whether his ADHD is leading him to overthink the situation.
 
-// TODO(end): ticket: Truncate OpenAI chat history in production. Open question: what should the
-// context limit be?
-
 // TODO(end): document the process for converting exported pi data into training data.
 
 // TODO(end): when you're done getting exported Pi data from people, delete all the original files
@@ -187,12 +247,6 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
 // TODO(end): potentially relevant: OpenAI docs: "If the model becomes less diverse than expected
 // decrease the number of epochs by 1 or 2. This is more common for tasks for which there are a wide
 // range of possible good completions".
-
-// TODO(end): ticket: Create production OpenAI prompt. Consider including Pi's `metadata` field.
-// Also, consider giving instructions, e.g. "You are an AI friend.". I'm hesitant to include
-// instructions because I'm not confident that I know how Pi behaves in a variety of scenarios. If
-// we include a system prompt in production, we should also include it in the training data during
-// fine-tuning. There's another ticket for that (I think).
 
 // TODO(end): ticket: Include a system prompt when fine-tuning. It's slightly nontrivial to include
 // the system prompt because each training example has many assistant messages. there's no obvious
@@ -294,7 +348,7 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
 //     - Hallucinating a memory: "There's a strong attraction and chemistry between you, but also
 //       some uncertainty about whether it's the right move to take things further."
 
-// TODO: Check the following cases from `pi-export.json` using your data cleaning logic:
+// TODO(later): Check the following cases from `pi-export.json` using your data cleaning logic:
 // - Negative response: "I'm here to listen and help you in any way I can."
 // - Negative response: "Can you please not say my goal is, you know, you're not programmed to do
 // - Negative response: "you literally ditched my idea and you still can't ******* figure out a way

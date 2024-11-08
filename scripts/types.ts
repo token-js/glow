@@ -73,5 +73,3 @@ export type FineTuningExample = {
 export type TODO = {
   messages: Array<TODOMessage>
 }
-
-// TODO(later): the files written from python should be json, not jsonl.

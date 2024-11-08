@@ -22,7 +22,6 @@ export const trainingDataMessageToChatMessage = (
 export const getInflectionResponse = async (
   truncatedMessages: ChatCompletionMessageParam[],
   config: string,
-  // TODO(later-later): use metadata?
   // metadata: InflectionChatCompletionMetadata 
 ): Promise<string> => {
   function mapMessage(msg: ChatCompletionMessageParam) {
@@ -46,9 +45,8 @@ export const getInflectionResponse = async (
     Authorization: `Bearer ${process.env.INFLECTION_API_KEY}`,
     'Content-Type': 'application/json',
   };
-  const payload = { config, context: mappedContext };
-  // TODO(later-later): use metadata?
   // const payload = { config, context: mappedContext, metadata };
+  const payload = { config, context: mappedContext };
   const response = await fetch(url, {
     method: 'POST',
     headers,
@@ -203,7 +201,7 @@ const isRawExportedPiMessage = (message: any): message is ExportedPiMessage => {
   );
 };
 
-export const convertToChatCompletionMessageParams = (
+export const convertPiMessageToChatMessage = (
   message: ExportedPiMessage
 ): ChatCompletionMessageParam => {
   if (!isRawExportedPiMessage(message)) {
@@ -458,8 +456,3 @@ export const convertToChatCompletionMessageParam = (message: FineTuningMessage):
   role: message.role,
   content: message.content
 });
-
-
-// TODO(later-later): in production, make sure you don't call tiktoken's encoding function on the
-// whole chat history. it's very, very slow. actually, just make sure not to use
-// `encoding_for_model`.
