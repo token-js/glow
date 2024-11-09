@@ -37,7 +37,6 @@ def get_next_item(it):
 
 
 def convert_stream_to_coroutine(messages, chat_id, user_id) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
-    logger.info("calling stream_wrapper")
     async def wrapper():
         sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id)
         it = iter(sync_gen)
@@ -59,8 +58,12 @@ def convert_stream_to_coroutine(messages, chat_id, user_id) -> Coroutine[Any, An
 class Options:
     model: str | ChatModels
     user: str | None
+    user_name: str
+    agent_name: str
     chat_id: str | None
     temperature: float | None
+
+
 class LLM(llm.LLM):
     def __init__(
         self,
@@ -69,13 +72,22 @@ class LLM(llm.LLM):
         api_key: str | None = None,
         user_id: str,
         chat_id: str,
+        user_name: str,
+        agent_name: str,
         temperature: float | None = None,
     ) -> None:
         api_key = api_key or os.environ.get("OPENAI_API_KEY")
         if api_key is None:
             raise ValueError("OpenAI API key is required")
 
-        self._opts = Options(model=model, user=user_id, chat_id=chat_id, temperature=temperature)
+        self._opts = Options(
+            model=model,
+            user=user_id,
+            chat_id=chat_id,
+            temperature=temperature,
+            agent_name=agent_name,
+            user_name=user_name
+        )
         self._running_fncs: MutableSet[asyncio.Task[Any]] = set()
 
     def chat(
@@ -93,6 +105,10 @@ class LLM(llm.LLM):
           raise ValueError('Functions are not supported')
 
         messages = _build_oai_context(chat_ctx, id(self))
+        messages = messages + [{
+            'role': 'system',
+            'content': f'Your name is {self._opts.agent_name}. You are talking to {self._opts.user_name}.'
+        }]
         stream = convert_stream_to_coroutine(messages=messages, chat_id=self._opts.chat_id, user_id=self._opts.user)
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)

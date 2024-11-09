@@ -1,5 +1,7 @@
 import logging
 import os
+import asyncpg
+import cuid
 from dotenv import load_dotenv
 from livekit.agents import (
     AutoSubscribe,
@@ -10,12 +12,13 @@ from livekit.agents import (
     llm,
 )
 from livekit.agents.pipeline import VoicePipelineAgent
-from livekit.plugins import openai, deepgram, silero
+from livekit.plugins import openai, deepgram, silero, elevenlabs
 from server.livekit_worker.llm import LLM
 import sys
 from pathlib import Path
-import asyncpg
 from fastapi import HTTPException, status
+from prisma import Prisma
+from datetime import datetime
 
 # Add the parent directory to the system path
 parent_dir = Path(__file__).resolve().parent.parent
@@ -28,8 +31,13 @@ logger = logging.getLogger("voice-agent")
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
+def fetch_initial_chat_message(agent_name: str):
+    return f"""
+Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun. 
+Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?
+"""
 
-async def get_chat(user_id: str):
+async def get_chat(user_id: str, user_name: str, agent_name: str):
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise Exception("DATABASE_URL environment variable not set")
@@ -37,6 +45,8 @@ async def get_chat(user_id: str):
     # Establish a connection to the database using DATABASE_URL
     conn = await asyncpg.connect(database_url, statement_cache_size=0)
 
+    send_first_chat_message = False
+    first_chat_message = ''
     try:
         logger.info(f"Fetching chat for user_id: {user_id}")
 
@@ -70,12 +80,32 @@ async def get_chat(user_id: str):
             chat_id,
         )
 
+        if (len(messages) == 0):
+            message_id = cuid.cuid()
+            first_chat_message = fetch_initial_chat_message(agent_name=agent_name)
+            message_role = 'assistant'
+            created = datetime.now()
+            modified = datetime.now()
+            await conn.fetch(
+                """
+                INSERT INTO chat_messages (id, chat_id, content, role, created, modified)
+                VALUES ($1, $2, $3, $4, $5, $6);
+                """,
+                message_id,
+                chat_id,
+                first_chat_message,
+                message_role,
+                created,
+                modified
+            )
+            send_first_chat_message = True
+
         # Convert records to dictionaries
         chat_dict = dict(chat)
         chat_dict["messages"] = [dict(message) for message in messages]
 
         logger.info("Chat data fetched successfully")
-        return chat_dict
+        return (chat_dict, send_first_chat_message, first_chat_message)
 
     except Exception as e:
         logger.error(f"Error fetching chat data: {e}")
@@ -95,12 +125,16 @@ async def entrypoint(ctx: JobContext):
 
     # Fetch the voice for this user
     voice_id = participant.attributes.get("voice_id")
+    agent_name = participant.attributes.get("agent_name")
+    name = participant.attributes.get("name")
     user_id = participant.identity
 
     # Fetch chat data asynchronously
-    chat = await get_chat(user_id=user_id)
-
-    logger.info(f"Chat: {chat}")
+    chat, send_first_chat_message, first_chat_message = await get_chat(
+        user_id=user_id,
+        agent_name=agent_name,
+        user_name=name
+    )
 
     chat_messages = [
         llm.ChatMessage(role=message["role"], content=message["content"], id=message["id"])
@@ -108,11 +142,7 @@ async def entrypoint(ctx: JobContext):
     ]
     chat_id = chat["id"]
 
-    logger.info(f"Chat messages: {chat_messages}")
-
     initial_ctx = llm.ChatContext(messages=chat_messages)
-
-    logger.info("Starting pipeline")
 
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
@@ -121,31 +151,33 @@ async def entrypoint(ctx: JobContext):
             model="inflection_3_pi",
             user_id=participant.identity,
             chat_id=chat_id,
+            user_name=name,
+            agent_name=agent_name
         ),
         preemptive_synthesis=True,
-        tts=openai.TTS(),
-        # tts=elevenlabs.TTS(
-        #     model_id="eleven_turbo_v2_5",
-        #     voice=elevenlabs.Voice(
-        #         id=voice_id,
-        #         name="Charlotte",
-        #         category="premade",
-        #         settings=elevenlabs.VoiceSettings(
-        #             stability=0.5,
-        #             similarity_boost=0.75,
-        #             style=0.0,
-        #             use_speaker_boost=False,
-        #         ),
-        #     ),
-        #     api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
-        # ),
+        # tts=openai.TTS(),
+        tts=elevenlabs.TTS(
+            model_id="eleven_turbo_v2_5",
+            voice=elevenlabs.Voice(
+                id=voice_id,
+                name=agent_name,
+                category="premade",
+                settings=elevenlabs.VoiceSettings(
+                    stability=0.5,
+                    similarity_boost=0.75,
+                    style=0.0,
+                    use_speaker_boost=False,
+                ),
+            ),
+            api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
+        ),
         chat_ctx=initial_ctx,
     )
 
     assistant.start(ctx.room, participant)
 
-    # The agent should be polite and greet the user when it joins :)
-    await assistant.say("Hey, how can I help you today?", allow_interruptions=True)
+    if (send_first_chat_message):
+      await assistant.say(first_chat_message, allow_interruptions=True)        
 
 
 if __name__ == "__main__":

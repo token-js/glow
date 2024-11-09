@@ -16,7 +16,10 @@
     "prisma:create": "npx prisma migrate dev --create-only",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "web": "expo start --web"
+    "web": "expo start --web",
+    "build:container": "docker build -t glow-fast-api .",
+    "run:livekit:container": "docker run -p 8000:8000 --env-file ./.env 'glow-fast-api'",
+    "run:api:container": "docker run -p 8000:8000 --env-file ./.env 'glow-fast-api' python -m server.livekit_worker.main dev"
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^9.0.0",

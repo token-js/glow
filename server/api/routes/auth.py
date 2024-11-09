@@ -5,6 +5,7 @@ from fastapi import APIRouter, Depends, HTTPException, status, FastAPI
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
 from prisma import Prisma
+from datetime import datetime
 
 router = APIRouter()
 
@@ -22,7 +23,6 @@ def authorize_user(credentials: HTTPAuthorizationCredentials = Depends(HTTPBeare
       )
       return payload
     except:
-        print('forbidden')
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Invalid token",
@@ -59,10 +59,8 @@ async def fetchToken(user=Depends(authorize_user)):
         'settings': True
       }
     )
-    print(user)
     user_voice = user.settings.voice
     voice_id = VoiceIdMapping[user_voice]
-    print(voice_id)
       
   await prisma.disconnect()
 
@@ -72,9 +70,11 @@ async def fetchToken(user=Depends(authorize_user)):
     .with_name(user_id) \
     .with_attributes({
       "voice_id": voice_id,
+      "name": user.settings.name,
+      "agent_name": user.settings.agentName
     }) \
     .with_grants(api.VideoGrants(
         room_join=True,
-        room=user_id,
+        room=f"{user_id}-{datetime.now().timestamp()}",
     ))
   return token.to_jwt()

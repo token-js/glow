@@ -34,14 +34,10 @@ export default function App() {
       const { data } = await supabase.auth.getUser()
       setSession(session)
       setUser(data.user)
-      console.log("user")
-      console.log(data.user)
       if (data.user) {
         let internalSettings = null
         while (internalSettings === null) {
           internalSettings = await fetchUserSettings(data.user.id)
-          console.log("settings")
-          console.log(internalSettings)
           await sleep(1000)
           setSettings(internalSettings)
         }

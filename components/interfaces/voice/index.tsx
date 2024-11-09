@@ -4,11 +4,12 @@ import {
   AudioSession,
   LiveKitRoom,
   registerGlobals,
-  useLocalParticipant,
+  useConnectionState,
   useRemoteParticipant,
+  useRoomContext,
 } from '@livekit/react-native';
-import { ParticipantKind } from 'livekit-client';
-import useAxios from 'axios-hooks'
+import { ConnectionState, ParticipantKind } from 'livekit-client';
+import useAxios, { RefetchFunction } from 'axios-hooks'
 import { Session } from '@supabase/supabase-js';
 import { ActivityIndicator, Button, View } from 'react-native';
 
@@ -34,42 +35,45 @@ const RoomConnecting = () => {
   return (<ActivityIndicator />)
 }
 
-const RoomStatus = ({ connected, setConnected }: { connected: boolean, setConnected: React.Dispatch<React.SetStateAction<boolean>> }) => {
-  const local = useLocalParticipant()
+const RoomStatus = ({ 
+  connected, 
+  setConnected,
+  refetchToken
+}: { 
+  connected: boolean,
+  setConnected: React.Dispatch<React.SetStateAction<boolean>>,
+  refetchToken: RefetchFunction<any, any> 
+}) => {  
+  const room = useRoomContext()
+  const [agentPreviouslyConnected, setAgentPreviouslyConnected] = React.useState<boolean>(false)
   const remote = useRemoteParticipant({
     kind: ParticipantKind.AGENT,
   })
 
   const agentConnected = !!remote
 
-  const fetchConnectionStatus = () => {
-    if (agentConnected) {
-      return 'connected'
-    } else if (!connected) {
-      return 'disconnected'
-    } else {
-      return 'connecting'
+  useEffect(() => {
+    // If call connected and agent connected and first time this is true, then record that the agent connected at least once
+    if (connected && agentConnected && !agentPreviouslyConnected) {
+      setAgentPreviouslyConnected(true)
     }
-  }
 
-  const status: 'disconnected' | 'connecting' | 'connected' = fetchConnectionStatus()
-  
-  const fetchRoomStatus = () => {
-    if (status === 'connected') {
-      return <RoomConnected connected={connected} setConnected={setConnected} />
-    } else if (status === 'connecting') {
-      return <RoomConnecting />
-    } else if (status === 'disconnected') {
-      return <RoomDisconnected connected={connected} setConnected={setConnected} />
+    // If the agent was previously connected and the call is connected, but there is no longer an agent connected then trigger
+    // the room to be destroyed and recreated (which will cause a new agent to be connected)
+    if (agentPreviouslyConnected && connected && !agentConnected) {
+      refetchToken()
     }
-  }
+  }, [agentConnected, connected])
 
   return (
     <>
       <View style={{
         marginBottom: 0
       }}>
-        {fetchRoomStatus()}
+        {connected && agentConnected === false ? <ActivityIndicator /> : <Button 
+          title={'End Chat'} 
+          onPress={() => setConnected(!connected)}  
+        />}
       </View>
     </>
   )
@@ -78,7 +82,7 @@ const RoomStatus = ({ connected, setConnected }: { connected: boolean, setConnec
 export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
   const [connected, setConnected] = React.useState<boolean>(false)
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
-  const [{ data: token, loading, error }] = useAxios(
+  const [{ data: token, loading, error }, refetch] = useAxios(
     { 
       url: `${process.env.EXPO_PUBLIC_AUTH_SERVER_URL}/api/generateToken`,
       method: 'GET',
@@ -108,15 +112,19 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
   }
 
   return (
-    <>
-      <LiveKitRoom
+    <View>
+      {!connected && <Button 
+        title={'Start Chat'} 
+        onPress={() => setConnected(!connected)}  
+      />}
+      {connected && <LiveKitRoom
         serverUrl={wsURL}
         token={token}
         connect={token && connected}
         audio={true}
       >
-        <RoomStatus connected={connected} setConnected={setConnected} />
-      </LiveKitRoom>
-    </>
+        <RoomStatus connected={connected} setConnected={setConnected} refetchToken={refetch} />
+      </LiveKitRoom>}
+    </View>
   );
 };

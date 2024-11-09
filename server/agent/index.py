@@ -13,7 +13,7 @@ async def generate_response(
   llm: AsyncOpenAI,
   conversation: List[ChatCompletionMessageParam],
 ):
-  MODEL_NAME = "ft:gpt-4o-mini-2024-07-18:personal::AQnLjQty"
+  MODEL_NAME = "ft:gpt-4o-mini-2024-07-18:glade::ARBGesfJ"
   return llm.chat.completions.create(
       messages=conversation, model=MODEL_NAME, stream=True
   )
