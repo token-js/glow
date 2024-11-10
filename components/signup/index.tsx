@@ -33,11 +33,10 @@ export type StepRenderProps = StepProps;
 
 type Props = {
   session: Session
-  settings: Settings
-  setSettings: React.Dispatch<React.SetStateAction<Settings | null>>
+  setShowSignupFlow: React.Dispatch<React.SetStateAction<boolean>>
 }
 
-export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
+export const SignupFlow: React.FC<Props> = ({ session, setShowSignupFlow }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [topSection, setTopSection] = useState<'A' | 'B'>('A')
@@ -92,7 +91,7 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
     const { error, data } = await supabase
       .from('settings')
       .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping], agent_name: aiName })
-      .eq('id', session.user.id)
+      .eq('id', user.id)
       .select()    
 
     const settings = convertSQLToSettings(data)
@@ -106,7 +105,7 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
           easing: Easing.in(Easing.ease),
         }),
       ]).start(async () => {
-        setSettings(settings)
+        setShowSignupFlow(false)
       });
     } else {
       console.error(error)
