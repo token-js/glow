@@ -1,0 +1,94 @@
+# flyctl launch added from .gitignore
+# Learn more https://docs.github.com/en/get-started/getting-started-with-git/ignoring-files
+
+# dependencies
+**/node_modules
+
+# Expo
+**/.expo
+**/dist
+**/web-build
+
+# Native
+**/*.orig.*
+**/*.jks
+**/*.p8
+**/*.p12
+**/*.key
+**/*.mobileprovision
+
+# Metro
+**/.metro-health-check*
+
+# debug
+**/npm-debug.*
+**/yarn-debug.*
+**/yarn-error.*
+
+# macOS
+**/.DS_Store
+**/*.pem
+
+# local env files
+**/.env*.local
+**/.env
+
+# typescript
+**/*.tsbuildinfo
+
+**/.env.local
+**/.venv
+**/.DS_Store
+
+**/__pycache__
+
+# flyctl launch added from android/.gitignore
+# OSX
+#
+android/**/.DS_Store
+
+# Android/IntelliJ
+#
+android/**/build
+android/**/.idea
+android/**/.gradle
+android/**/local.properties
+android/**/*.iml
+android/**/*.hprof
+android/**/.cxx
+
+# Bundle artifacts
+android/**/*.jsbundle
+
+# flyctl launch added from ios/.gitignore
+# OSX
+#
+ios/**/.DS_Store
+
+# Xcode
+#
+ios/**/build
+ios/**/*.pbxuser
+!ios/**/default.pbxuser
+ios/**/*.mode1v3
+!ios/**/default.mode1v3
+ios/**/*.mode2v3
+!ios/**/default.mode2v3
+ios/**/*.perspectivev3
+!ios/**/default.perspectivev3
+ios/**/xcuserdata
+ios/**/*.xccheckout
+ios/**/*.moved-aside
+ios/**/DerivedData
+ios/**/*.hmap
+ios/**/*.ipa
+ios/**/*.xcuserstate
+ios/**/project.xcworkspace
+ios/**/.xcode.env.local
+
+# Bundle artifacts
+ios/**/*.jsbundle
+
+# CocoaPods
+ios/Pods
+fly.toml

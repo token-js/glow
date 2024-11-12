@@ -14,7 +14,8 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.glowhealth.app"
+      "bundleIdentifier": "com.glowhealth.app",
+      "usesAppleSignIn": true
     },
     "android": {
       "adaptiveIcon": {
@@ -43,7 +44,8 @@
       ],
       "expo-router",
       "@livekit/react-native-expo-plugin",
-      "@config-plugins/react-native-webrtc"
+      "@config-plugins/react-native-webrtc",
+      "expo-apple-authentication"
     ],
     "extra": {
       "eas": {

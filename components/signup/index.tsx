@@ -6,7 +6,7 @@ import {
 } from 'react-native';
 import { supabase } from '../../lib/supabase';
 import { Session } from '@supabase/supabase-js';
-import { Settings } from '@prisma/client';
+import { $Enums, Settings } from '@prisma/client';
 import { VoiceNameMapping, VoiceSelector } from './voice';
 import { NameSection } from './name'
 import { GenderSection } from './gender'
@@ -34,9 +34,16 @@ export type StepRenderProps = StepProps;
 type Props = {
   session: Session
   setShowSignupFlow: React.Dispatch<React.SetStateAction<boolean>>
+  setSettings: React.Dispatch<React.SetStateAction<{
+    id: string;
+    name: string | null;
+    agentName: string | null;
+    gender: $Enums.Gender | null;
+    voice: $Enums.Voice | null;
+  } | null | undefined>>
 }
 
-export const SignupFlow: React.FC<Props> = ({ session, setShowSignupFlow }) => {
+export const SignupFlow: React.FC<Props> = ({ session, setShowSignupFlow, setSettings }) => {
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [topSection, setTopSection] = useState<'A' | 'B'>('A')
@@ -90,11 +97,12 @@ export const SignupFlow: React.FC<Props> = ({ session, setShowSignupFlow }) => {
   const onFinish = async (): Promise<void> => {
     const { error, data } = await supabase
       .from('settings')
-      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping], agent_name: aiName })
-      .eq('id', user.id)
+      .update({ name: name, gender: gender.toLowerCase() as any, voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping] as any, agent_name: aiName })
+      .eq('id', session.user.id)
       .select()    
 
     const settings = convertSQLToSettings(data)
+    setSettings(settings)
 
     if (error === null) {
       Animated.parallel([

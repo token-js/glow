@@ -84,7 +84,7 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
   const [{ data: token, loading, error }, refetch] = useAxios(
     { 
-      url: `${process.env.EXPO_PUBLIC_AUTH_SERVER_URL}/api/generateToken`,
+      url: `https://${process.env.EXPO_PUBLIC_API_URL}/api/generateToken`,
       method: 'GET',
       headers: {
         Authorization: `Bearer ${session.access_token}`,

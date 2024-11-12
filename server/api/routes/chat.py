@@ -300,5 +300,5 @@ async def handle_update_chat(request: UpdateChatRequest):
 
 
 @router.get("/api/health")
-async def handle_chat_data():
+async def handle_health_check():
     return JSONResponse(status_code=200, content={"message": "Alive"})
