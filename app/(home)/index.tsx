@@ -7,6 +7,7 @@ import { HomeScreen } from '../../components/screens/home'
 import { SignupFlow } from '../../components/signup'
 import { Settings } from '@prisma/client'
 import { supabase } from '../../lib/supabase'
+import { segmentTrackOpened } from '../../lib/analytics'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -20,13 +21,18 @@ export default function App() {
     setLoading(false)
   }
 
-  useEffect(() => {
+  const handleSetupSettings = async (session: Session | null) => {
     if (session) {
+      segmentTrackOpened(session.user.id)
       setLoading(true)
       setupSettings(session.user.id)
     } else {
       setSettings(null)
     }
+  }
+
+  useEffect(() => {
+    handleSetupSettings(session)
   }, [session])
 
   useEffect(() => {

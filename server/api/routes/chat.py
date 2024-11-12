@@ -143,6 +143,7 @@ def stream_and_update_chat(
     messages: List[dict],
     chat_id: str,
     user_id: str,
+    chat_type: str,
 ):
     user_message_timestamp = datetime.now()
     client = OpenAI(
@@ -187,6 +188,7 @@ def stream_and_update_chat(
     track_sent_message(
         user_id=user_id,
         chat_id=chat_id,
+        chat_type=chat_type,
     )
 
 
@@ -195,7 +197,7 @@ def stream_text(
     chat_id: str,
     user_id: str,
 ):
-    stream = stream_and_update_chat(messages, chat_id, user_id)
+    stream = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id, chat_type='text')
     for chunk in stream:
         for choice in chunk.choices:
             if choice.finish_reason == "stop":

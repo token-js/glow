@@ -11,6 +11,7 @@ import { convertSQLToSettings } from '../../lib/utils'
 import { $Enums, Settings } from '@prisma/client'
 import { SignInWithApple } from './apple'
 import { SignInWithGoogle } from './google'
+import { segmentClient, segmentTrackLoadedAuthPage, segmentTrackSignedIn } from '../../lib/analytics'
 
 type Props = {
   setSession: React.Dispatch<React.SetStateAction<Session | null>>
@@ -46,7 +47,13 @@ export default function Auth({ setSession, setShowSignupFlow }: Props) {
     if (settings.name === null) {
       setShowSignupFlow(true)
     }
+
+    segmentTrackSignedIn(user.id)
   }
+
+  useEffect(() => {
+    segmentTrackLoadedAuthPage()
+  }, [])
 
   return (
     <View style={styles.container}>

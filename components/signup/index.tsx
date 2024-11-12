@@ -13,6 +13,7 @@ import { GenderSection } from './gender'
 import { signupStyles, theme } from '../../lib/style';
 import { convertSQLToSettings } from '../../lib/utils'
 import { AINameSection } from './aiName';
+import { segmentTrackFinishedSignup } from '../../lib/analytics';
 
 export interface StepProps {
   onNext: () => void;
@@ -114,6 +115,7 @@ export const SignupFlow: React.FC<Props> = ({ session, setShowSignupFlow, setSet
         }),
       ]).start(async () => {
         setShowSignupFlow(false)
+        segmentTrackFinishedSignup()
       });
     } else {
       console.error(error)
