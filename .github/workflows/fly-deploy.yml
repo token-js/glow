@@ -2,6 +2,8 @@ name: Fly Deploy
 on:
   workflow_dispatch:
   push:
+    paths:
+      - server/**
     branches:
       - main
 jobs:

@@ -4,32 +4,16 @@ import {
   AudioSession,
   LiveKitRoom,
   registerGlobals,
-  useConnectionState,
   useRemoteParticipant,
   useRoomContext,
 } from '@livekit/react-native';
-import { ConnectionState, ParticipantKind } from 'livekit-client';
+import { ParticipantKind } from 'livekit-client';
 import useAxios, { RefetchFunction } from 'axios-hooks'
 import { Session } from '@supabase/supabase-js';
 import { ActivityIndicator, Button, View } from 'react-native';
+import { segmentTrackEndChat, segmentTrackStartChat } from '../../../lib/analytics';
 
 registerGlobals();
-
-const RoomConnected = ({ setConnected, connected }: { setConnected: React.Dispatch<React.SetStateAction<boolean>>, connected: boolean }) => {
-  return (<Button 
-    title={'End Chat'} 
-    onPress={() => setConnected(!connected)}  
-  />)
-}
-
-const RoomDisconnected = ({ setConnected, connected }: { setConnected: React.Dispatch<React.SetStateAction<boolean>>, connected: boolean }) => {
-  return (
-    <Button 
-      title={'Start Chat'} 
-      onPress={() => setConnected(!connected)}  
-    />
-  )
-}
 
 const RoomConnecting = () => {
   return (<ActivityIndicator />)
@@ -72,7 +56,10 @@ const RoomStatus = ({
       }}>
         {connected && agentConnected === false ? <ActivityIndicator /> : <Button 
           title={'End Chat'} 
-          onPress={() => setConnected(!connected)}  
+          onPress={() => {
+            setConnected(!connected)
+            segmentTrackEndChat()
+          }}  
         />}
       </View>
     </>
@@ -115,7 +102,10 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
     <View>
       {!connected && <Button 
         title={'Start Chat'} 
-        onPress={() => setConnected(!connected)}  
+        onPress={() => {
+          setConnected(!connected)
+          segmentTrackStartChat()
+        }}  
       />}
       {connected && <LiveKitRoom
         serverUrl={wsURL}

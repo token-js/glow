@@ -38,7 +38,7 @@ def get_next_item(it):
 
 def convert_stream_to_coroutine(messages, chat_id, user_id) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
     async def wrapper():
-        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id)
+        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id, chat_type='voice')
         it = iter(sync_gen)
 
         async def async_gen():
