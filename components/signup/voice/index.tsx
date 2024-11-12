@@ -72,7 +72,6 @@ export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onNext, setAIN
         }
       });
     } catch (error) {
-      console.log('Error playing sound:', error);
       Alert.alert('Playback Error', 'Unable to play the selected voice.');
     }
   };

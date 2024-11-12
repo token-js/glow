@@ -91,9 +91,9 @@ export const SignupFlow: React.FC<Props> = ({ session, setSettings }) => {
   const onFinish = async (): Promise<void> => {
     const { error, data } = await supabase
       .from('settings')
-      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping], ai_name: aiName })
+      .update({ name: name, gender: gender.toLowerCase(), voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping], agent_name: aiName })
       .eq('id', session.user.id)
-      .select()
+      .select()    
 
     const settings = convertSQLToSettings(data)
 
