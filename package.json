@@ -12,7 +12,7 @@
     "prisma:generate": "prisma generate",
     "prisma:reset": "npx prisma migrate reset",
     "prisma:migrate": "npx prisma migrate dev",
-    "prisma:deploy": "npx prisma deploy",
+    "prisma:deploy": "npx prisma migrate deploy",
     "prisma:create": "npx prisma migrate dev --create-only",
     "android": "expo run:android",
     "ios": "expo run:ios",
