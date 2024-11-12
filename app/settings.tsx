@@ -13,9 +13,7 @@ export default function SettingsScreen() {
     });
 
     try {
-      const { error } = await supabase.auth.signOut()
-      console.error(error)
-      if (error) throw error;
+      await supabase.auth.signOut()
     } catch (error: any) {
       Alert.alert(
         'Logout Failed',

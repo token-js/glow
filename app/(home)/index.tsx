@@ -1,29 +1,33 @@
 import 'react-native-url-polyfill/auto'
-import { useState, useEffect } from 'react'
-import { View, StyleSheet, ActivityIndicator, Text } from 'react-native'
+import { useEffect, useState } from 'react'
+import { View, StyleSheet, ActivityIndicator } from 'react-native'
 import { Session, User } from '@supabase/supabase-js'
-import { supabase } from '../../lib/supabase'
-import Auth from '../../components/Auth'
+import Auth, { sleep, fetchUserSettings } from '../../components/auth'
 import { HomeScreen } from '../../components/screens/home'
 import { SignupFlow } from '../../components/signup'
 import { Settings } from '@prisma/client'
-import { convertSQLToSettings } from '../../lib/utils'
-
-const fetchUserSettings = async (userId: string): Promise<Settings | null> => {
-  const { data } = await supabase
-    .from('settings')
-    .select()
-    .eq('id', userId)
-
-  return convertSQLToSettings(data)
-}
-
-export const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+import { supabase } from '../../lib/supabase'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
-  const [user, setUser] = useState<User | null>(null)
-  const [settings, setSettings] = useState<Settings | null>(null)
+  const [showSignupFlow, setShowSignupFlow] = useState<boolean>(false)
+  const [settings, setSettings] = useState<Settings | null>()
+  const [loading, setLoading] = useState<boolean>(true)
+
+  const setupSettings = async (userId: string) => {
+    setSettings(await fetchUserSettings(userId))
+    sleep(1000)
+    setLoading(false)
+  }
+
+  useEffect(() => {
+    if (session) {
+      setLoading(true)
+      setupSettings(session.user.id)
+    } else {
+      setSettings(null)
+    }
+  }, [session])
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -31,42 +35,38 @@ export default function App() {
     })
 
     supabase.auth.onAuthStateChange(async (_event, session) => {
-      const { data } = await supabase.auth.getUser()
       setSession(session)
-      setUser(data.user)
-      if (data.user) {
-        let internalSettings = null
-        while (internalSettings === null) {
-          internalSettings = await fetchUserSettings(data.user.id)
-          await sleep(1000)
-          setSettings(internalSettings)
-        }
-      }
     })
   }, [])
 
-  const completedSignup = settings?.name && settings.gender && settings.voice
+  const didConfigureSettings = settings && settings?.agentName !== null && settings?.gender !== null && settings.name !== null && settings.voice !== null
 
-  if (!user) {
+  if (session && loading) {
     return (
       <View style={styles.container}>
-        <Auth />
+        <ActivityIndicator />
       </View>
     )
-  } else if (settings === null) {
+  }
+
+  if (!session) {
     return (
       <View style={styles.container}>
-        <ActivityIndicator size="large" />
+        <Auth setSession={setSession} setShowSignupFlow={setShowSignupFlow} />
       </View>
     )
-  } else if (session) {
+  } else if (showSignupFlow || didConfigureSettings === false) {
     return (
       <View style={styles.container}>
-        {completedSignup ? <HomeScreen /> : <SignupFlow session={session} settings={settings} setSettings={setSettings} />}
+        <SignupFlow session={session} setShowSignupFlow={setShowSignupFlow} setSettings={setSettings} />
       </View>
     )
   } else {
-    throw new Error("Failed to fetch session for signed in user, this should never happen")
+    return (
+      <View style={styles.container}>
+        <HomeScreen />
+      </View>
+    )
   }
 }
 

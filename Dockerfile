@@ -45,4 +45,4 @@ EXPOSE 8000
 ENTRYPOINT ["/entrypoint.sh"]
 
 # Set the default command to run the application with Uvicorn
-CMD ["uvicorn", "server.api.main:app", "--reload", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["python", "-m", "server.livekit_worker.main", "start"]
