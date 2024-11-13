@@ -50,6 +50,14 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
         iosUrlScheme: "com.googleusercontent.apps.118244602240-hj3ukvu2rn64cvnop7of44b0psuackki"
       }
     ],
+    [
+      "@sentry/react-native/expo",
+      {
+        url: "https://sentry.io/",
+        project: "javascript-nextjs",
+        organization: "glow-7f"
+      }
+    ],
     "expo-router",
     "@livekit/react-native-expo-plugin",
     "@config-plugins/react-native-webrtc",

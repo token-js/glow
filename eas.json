@@ -19,7 +19,9 @@
         "EXPO_PUBLIC_GOOGLE_AUTH_CLIENT_ID": "118244602240-hj3ukvu2rn64cvnop7of44b0psuackki.apps.googleusercontent.com",
         "EXPO_PUBLIC_SEGMENT_WRITE_KEY": "acwNnSRzlzWUykeptQLvMneVXyHkpYbF",
         "EXPO_PUBLIC_LIVEKIT_URL": "wss://glow-staging-8z2qbbyf.livekit.cloud",
-        "EXPO_PUBLIC_API_URL": "glow-staging.fly.dev"
+        "EXPO_PUBLIC_API_URL": "glow-staging.fly.dev",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://f62e73128945a534d204e5014464b058@o4507766358736896.ingest.us.sentry.io/4507766359982080",
+        "EXPO_PUBLIC_SENTRY_ENV": "staging"
       }
     },
     "production": {
@@ -30,7 +32,9 @@
         "EXPO_PUBLIC_GOOGLE_AUTH_CLIENT_ID": "118244602240-f2me9tmhb08qg79mc72kkt2a6haijro2.apps.googleusercontent.com",
         "EXPO_PUBLIC_SEGMENT_WRITE_KEY": "hx64EI7X7l6yxECaWYGvbQkS9zGE1IKJ",
         "EXPO_PUBLIC_LIVEKIT_URL": "wss://glow-eooqleqy.livekit.cloud",
-        "EXPO_PUBLIC_API_URL": "glow-api-prod.fly.dev"
+        "EXPO_PUBLIC_API_URL": "glow-api-prod.fly.dev",
+        "EXPO_PUBLIC_SENTRY_DSN": "https://f62e73128945a534d204e5014464b058@o4507766358736896.ingest.us.sentry.io/4507766359982080",
+        "EXPO_PUBLIC_SENTRY_ENV": "production"
       }
     }
   },

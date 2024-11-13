@@ -2,6 +2,19 @@
 import React from 'react';
 import { Stack } from 'expo-router';
 import { registerGlobals } from '@livekit/react-native';
+import * as Sentry from '@sentry/react-native';
+import { captureConsoleIntegration } from "@sentry/integrations";
+
+Sentry.init({
+  dsn: process.env.EXPO_PUBLIC_SENTRY_DSN,
+  environment: process.env.EXPO_PUBLIC_SENTRY_ENV,
+  integrations: [
+    captureConsoleIntegration({ levels: ["warn", "error"] }),
+  ]
+
+  // uncomment the line below to enable Spotlight (https://spotlightjs.com)
+  // enableSpotlight: __DEV__,
+});
 
 registerGlobals()
 

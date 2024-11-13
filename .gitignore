@@ -45,3 +45,4 @@ __pycache__
 # eas
 ios
 android
+.env.local
