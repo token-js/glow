@@ -2,9 +2,9 @@ import { ExpoConfig, ConfigContext } from 'expo/config';
 
 export default ({ config }: ConfigContext): ExpoConfig => ({
   ...config,
-  name: "my-app",
-  slug: "my-app",
-  scheme: "my-app",
+  name: "Glow",
+  slug: "Glow",
+  scheme: "glow",
   version: "1.0.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
@@ -17,7 +17,8 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   ios: {
     supportsTablet: true,
     bundleIdentifier: "com.glowhealth.app",
-    usesAppleSignIn: true,
+    // usesAppleSignIn: true,
+    usesAppleSignIn: false,
     infoPlist: {
       UIBackgroundModes: [
         "audio", "fetch", "voip"
@@ -52,7 +53,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
     "expo-router",
     "@livekit/react-native-expo-plugin",
     "@config-plugins/react-native-webrtc",
-    "expo-apple-authentication"
+    // "expo-apple-authentication"
   ],
   extra: {
     eas: {

@@ -10,7 +10,7 @@ import {
 import { ParticipantKind } from 'livekit-client';
 import useAxios, { RefetchFunction } from 'axios-hooks'
 import { Session } from '@supabase/supabase-js';
-import { ActivityIndicator, Button, View } from 'react-native';
+import { ActivityIndicator, Alert, Button, View } from 'react-native';
 import { segmentTrackEndChat, segmentTrackStartChat } from '../../../lib/analytics';
 
 registerGlobals();
@@ -28,7 +28,6 @@ const RoomStatus = ({
   setConnected: React.Dispatch<React.SetStateAction<boolean>>,
   refetchToken: RefetchFunction<any, any> 
 }) => {  
-  const room = useRoomContext()
   const [agentPreviouslyConnected, setAgentPreviouslyConnected] = React.useState<boolean>(false)
   const remote = useRemoteParticipant({
     kind: ParticipantKind.AGENT,
@@ -78,6 +77,13 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
       }
     },
   )
+
+  useEffect(() => {
+    if (error !== null) {
+      console.error(error)
+      Alert.alert("An error occurred while fetching access token, please report this to the developers.", error.message)
+    }
+  }, [error])
 
   useEffect(() => {
     if (loading) {
