@@ -1,6 +1,6 @@
 import os
 
-import segment.client as analytics
+import segment.analytics as analytics
 from prisma import enums
 
 analytics.write_key = os.getenv("EXPO_PUBLIC_SEGMENT_WRITE_KEY")
