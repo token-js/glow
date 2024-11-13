@@ -54,7 +54,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: 'transparent',
     borderWidth: 0,
-    shadowColor: 'transparent',
     elevation: 0,
     height: 50
   },

@@ -3,11 +3,12 @@
   "version": "1.0.0",
   "main": "./index",
   "scripts": {
-    "start": "expo start",
+    "ios": "npx expo run:ios",
+    "ios:device": "npx expo run:ios --device",
     "start:livekit": "python -m server.livekit_worker.main dev",
     "start:api": "uvicorn server.api.main:app --reload --port 8000 --env-file .env",
     "start:ngrok": "bash -c 'source .env && ngrok http --domain=$EXPO_PUBLIC_API_URL 8000'",
-    "start:server": "source .venv/bin/activate && pip install -r python/requirements.txt && concurrently \"npm run start:agent\" \"npm run start:auth\" \"npm run start:ngrok\"",
+    "start:server": "source .venv/bin/activate && concurrently \"npm run start:livekit\" \"npm run start:api\" \"npm run start:ngrok\"",
     "supabase:generate": "supabase gen types typescript --project-id fgaselroozoxiyumasqg > lib/types/supabase.ts",
     "prisma:generate": "prisma generate",
     "prisma:reset": "npx prisma migrate reset",
@@ -15,7 +16,6 @@
     "prisma:deploy": "npx prisma migrate deploy",
     "prisma:create": "npx prisma migrate dev --create-only",
     "android": "expo run:android",
-    "ios": "expo run:ios",
     "web": "expo start --web",
     "build:container": "docker build -t glow-fast-api .",
     "run:livekit:container": "docker run -p 8000:8000 --env-file ./.env 'glow-fast-api' python -m server.livekit_worker.main dev",
@@ -71,7 +71,8 @@
     "@types/react": "~18.2.45",
     "prisma": "5.17.0",
     "ts-node": "^10.9.2",
-    "typescript": "~5.3.3"
+    "typescript": "~5.3.3",
+    "concurrently": "^8.2.2"
   },
   "private": true
 }

@@ -66,11 +66,6 @@ const styles = StyleSheet.create({
     width: 50,
     height: 50,
     borderRadius: 25,
-    elevation: 2, // Adds shadow for Android
-    shadowColor: '#000', // Adds shadow for iOS
-    shadowOffset: { width: 0, height: 1 }, // Shadow offset
-    shadowOpacity: 0.2, // Shadow opacity
-    shadowRadius: 1, // Shadow radius
     alignItems: 'center',
     justifyContent: 'center',
     overflow: 'hidden', // Ensure content stays within the button
