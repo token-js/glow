@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, Button, Alert } from 'react-native';
 import { Stack } from 'expo-router';
 import { useRouter } from 'expo-router';
 import { supabase } from '../lib/supabase';
+import Sentry from '@sentry/react-native'
 
 export default function SettingsScreen() {
   const router = useRouter();

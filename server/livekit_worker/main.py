@@ -2,6 +2,7 @@ import logging
 import os
 import asyncpg
 import cuid
+import sentry_sdk
 from dotenv import load_dotenv
 from livekit.agents import (
     AutoSubscribe,
@@ -19,6 +20,22 @@ from pathlib import Path
 from fastapi import HTTPException, status
 from prisma import Prisma
 from datetime import datetime
+from sentry_sdk.integrations.asyncio import AsyncioIntegration
+from sentry_sdk.integrations.logging import LoggingIntegration
+
+sentry_sdk.init(
+    dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
+    environment=os.getenv("EXPO_PUBLIC_SENTRY_ENV"),
+    # Sample rate for transactions (performance).
+    traces_sample_rate=1.0,
+    # Sample rate for exceptions / crashes.
+    sample_rate=1.0,
+    max_request_body_size="always",
+    integrations=[
+        AsyncioIntegration(),
+        LoggingIntegration(level=logging.INFO, event_level=logging.ERROR),
+    ],
+)
 
 # Add the parent directory to the system path
 parent_dir = Path(__file__).resolve().parent.parent

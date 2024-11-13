@@ -41,3 +41,8 @@ yarn-error.*
 .DS_Store
 
 __pycache__
+
+# eas
+ios
+android
+.env.local

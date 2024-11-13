@@ -6,13 +6,12 @@ from server.api.routes import (
     chat,
     auth
 )
-
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 
 sentry_sdk.init(
-    dsn=os.getenv("SENTRY_DSN"),
-    environment=os.getenv("NEXT_PUBLIC_SENTRY_ENVIRONMENT"),
+    dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
+    environment=os.getenv("EXPO_PUBLIC_SENTRY_ENV"),
     # Sample rate for transactions (performance).
     traces_sample_rate=1.0,
     # Sample rate for exceptions / crashes.

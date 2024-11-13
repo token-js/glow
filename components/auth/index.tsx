@@ -61,7 +61,7 @@ export default function Auth({ setSession, setShowSignupFlow }: Props) {
         <Text style={{ fontSize: 24, fontWeight: 'bold' }}>Welcome to Glow</Text>
       </View>
       <View style={{ flex: 2, marginBottom: 10 }}>
-        <SignInWithApple handleDidSignin={handleDidSignin} />
+        {/* <SignInWithApple handleDidSignin={handleDidSignin} /> */}
         <SignInWithGoogle handleDidSignin={handleDidSignin} />
       </View>
     </View>
