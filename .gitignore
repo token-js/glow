@@ -46,3 +46,10 @@ __pycache__
 ios
 android
 .env.local
+
+# VSCode
+# Ignore everything
+.vscode/*
+# Allow only settings.json and extensions.json
+!.vscode/settings.json
+!.vscode/extensions.json

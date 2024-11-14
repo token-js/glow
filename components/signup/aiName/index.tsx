@@ -21,7 +21,7 @@ export const AINameSection: React.FC<Props> = ({ setAIName, aiName, onFinish }) 
     <View style={signupStyles.sectionContent}>
       <View />
       <View style={signupStyles.sectionMainContent}>
-      <Text style={theme.title}>Customize your assistants name.</Text>
+      <Text style={theme.title}>Customize your assistant's name.</Text>
         <TextInput
           style={[
             theme.input,
@@ -45,7 +45,7 @@ export const AINameSection: React.FC<Props> = ({ setAIName, aiName, onFinish }) 
           accessibilityLabel="Confirm"
         >
           <Text style={signupStyles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>   
+        </TouchableOpacity>
     </View>
   )
 }

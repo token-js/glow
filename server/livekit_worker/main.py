@@ -50,7 +50,7 @@ def prewarm(proc: JobProcess):
 
 def fetch_initial_chat_message(agent_name: str):
     return f"""
-Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun. 
+Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun.
 Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?
 """
 
@@ -129,7 +129,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
         raise e
 
     finally:
-        await conn.close()    
+        await conn.close()
 
 async def entrypoint(ctx: JobContext):
 
@@ -143,7 +143,9 @@ async def entrypoint(ctx: JobContext):
     # Fetch the voice for this user
     voice_id = participant.attributes.get("voice_id")
     agent_name = participant.attributes.get("agent_name")
+    user_gender = participant.attributes.get("user_gender")
     name = participant.attributes.get("name")
+    timezone = participant.attributes.get("timezone")
     user_id = participant.identity
 
     # Fetch chat data asynchronously
@@ -169,7 +171,9 @@ async def entrypoint(ctx: JobContext):
             user_id=participant.identity,
             chat_id=chat_id,
             user_name=name,
-            agent_name=agent_name
+            user_gender=user_gender,
+            agent_name=agent_name,
+            timezone=timezone
         ),
         preemptive_synthesis=True,
         # tts=openai.TTS(),
@@ -194,7 +198,7 @@ async def entrypoint(ctx: JobContext):
     assistant.start(ctx.room, participant)
 
     if (send_first_chat_message):
-      await assistant.say(first_chat_message, allow_interruptions=True)        
+      await assistant.say(first_chat_message, allow_interruptions=True)
 
 
 if __name__ == "__main__":

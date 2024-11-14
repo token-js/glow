@@ -1,0 +1,4 @@
+FINE_TUNED_MODEL = "ft:gpt-4o-mini-2024-07-18:glade::ARBGesfJ"
+
+CONTEXT_WINDOWS = {"gpt-4o-mini-2024-07-18": 128000, "inflection_3_pi": 8000}
+CONTEXT_WINDOWS[FINE_TUNED_MODEL] = 128000

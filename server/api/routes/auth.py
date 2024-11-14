@@ -4,6 +4,7 @@ from livekit import api
 from fastapi import APIRouter, Depends, HTTPException, status, FastAPI
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel
 from prisma import Prisma
 from datetime import datetime
 
@@ -43,9 +44,14 @@ VoiceIdMapping = {
   'voice_6': CharlieVoice, # fill in elevenlabs voice id
 }
 
-@router.get("/api/generateToken")
-async def fetchToken(user=Depends(authorize_user)):
+class Request(BaseModel):
+    timezone: str
+
+
+@router.post("/api/generateToken")
+async def fetchToken(request: Request, user=Depends(authorize_user)):
   user_id = user["sub"]
+  timezone = request.timezone
 
   prisma = Prisma()
   await prisma.connect()
@@ -61,7 +67,7 @@ async def fetchToken(user=Depends(authorize_user)):
     )
     user_voice = user.settings.voice
     voice_id = VoiceIdMapping[user_voice]
-      
+
   await prisma.disconnect()
 
 
@@ -71,7 +77,9 @@ async def fetchToken(user=Depends(authorize_user)):
     .with_attributes({
       "voice_id": voice_id,
       "name": user.settings.name,
-      "agent_name": user.settings.agentName
+      "agent_name": user.settings.agentName,
+      "timezone": timezone,
+      "user_gender": user.settings.gender
     }) \
     .with_grants(api.VideoGrants(
         room_join=True,

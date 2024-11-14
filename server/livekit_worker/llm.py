@@ -4,6 +4,7 @@ import os
 import asyncio
 import logging
 
+from prisma import Prisma
 from dataclasses import dataclass
 from typing import Any, MutableSet
 from livekit.agents import llm
@@ -36,9 +37,9 @@ def get_next_item(it):
         return None
 
 
-def convert_stream_to_coroutine(messages, chat_id, user_id) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
+def convert_stream_to_coroutine(messages, chat_id, user_id, timezone: str, ai_first_name: str, user_first_name: str, user_gender: str) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
     async def wrapper():
-        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id, chat_type='voice')
+        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id, chat_type='voice', timezone=timezone, ai_first_name=ai_first_name, user_first_name=user_first_name, user_gender=user_gender)
         it = iter(sync_gen)
 
         async def async_gen():
@@ -59,7 +60,9 @@ class Options:
     model: str | ChatModels
     user: str | None
     user_name: str
+    user_gender: str
     agent_name: str
+    timezone: str
     chat_id: str | None
     temperature: float | None
 
@@ -74,6 +77,8 @@ class LLM(llm.LLM):
         chat_id: str,
         user_name: str,
         agent_name: str,
+        user_gender: str,
+        timezone: str,
         temperature: float | None = None,
     ) -> None:
         api_key = api_key or os.environ.get("OPENAI_API_KEY")
@@ -86,7 +91,9 @@ class LLM(llm.LLM):
             chat_id=chat_id,
             temperature=temperature,
             agent_name=agent_name,
-            user_name=user_name
+            user_name=user_name,
+            user_gender=user_gender,
+            timezone=timezone
         )
         self._running_fncs: MutableSet[asyncio.Task[Any]] = set()
 
@@ -105,10 +112,6 @@ class LLM(llm.LLM):
           raise ValueError('Functions are not supported')
 
         messages = _build_oai_context(chat_ctx, id(self))
-        messages = messages + [{
-            'role': 'system',
-            'content': f'Your name is {self._opts.agent_name}. You are talking to {self._opts.user_name}.'
-        }]
-        stream = convert_stream_to_coroutine(messages=messages, chat_id=self._opts.chat_id, user_id=self._opts.user)
+        stream = convert_stream_to_coroutine(messages=messages, chat_id=self._opts.chat_id, user_id=self._opts.user, timezone=self._opts.timezone, ai_first_name=self._opts.agent_name, user_first_name=self._opts.user_name, user_gender=self._opts.user_gender)
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
