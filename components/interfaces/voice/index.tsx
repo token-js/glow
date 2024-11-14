@@ -19,15 +19,15 @@ const RoomConnecting = () => {
   return (<ActivityIndicator />)
 }
 
-const RoomStatus = ({ 
-  connected, 
+const RoomStatus = ({
+  connected,
   setConnected,
   refetchToken
-}: { 
+}: {
   connected: boolean,
   setConnected: React.Dispatch<React.SetStateAction<boolean>>,
-  refetchToken: RefetchFunction<any, any> 
-}) => {  
+  refetchToken: RefetchFunction<any, any>
+}) => {
   const [agentPreviouslyConnected, setAgentPreviouslyConnected] = React.useState<boolean>(false)
   const remote = useRemoteParticipant({
     kind: ParticipantKind.AGENT,
@@ -53,12 +53,12 @@ const RoomStatus = ({
       <View style={{
         marginBottom: 0
       }}>
-        {connected && agentConnected === false ? <ActivityIndicator /> : <Button 
-          title={'End Chat'} 
+        {connected && agentConnected === false ? <ActivityIndicator /> : <Button
+          title={'End Chat'}
           onPress={() => {
             setConnected(!connected)
             segmentTrackEndChat()
-          }}  
+          }}
         />}
       </View>
     </>
@@ -66,14 +66,18 @@ const RoomStatus = ({
 }
 
 export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [connected, setConnected] = React.useState<boolean>(false)
   const wsURL = process.env.EXPO_PUBLIC_LIVEKIT_URL
   const [{ data: token, loading, error }, refetch] = useAxios(
-    { 
+    {
       url: `https://${process.env.EXPO_PUBLIC_API_URL}/api/generateToken`,
-      method: 'GET',
+      method: 'POST',
       headers: {
         Authorization: `Bearer ${session.access_token}`,
+      },
+      data: {
+        timezone
       }
     },
   )
@@ -106,12 +110,12 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
 
   return (
     <View>
-      {!connected && <Button 
-        title={'Start Chat'} 
+      {!connected && <Button
+        title={'Start Chat'}
         onPress={() => {
           setConnected(!connected)
           segmentTrackStartChat()
-        }}  
+        }}
       />}
       {connected && <LiveKitRoom
         serverUrl={wsURL}

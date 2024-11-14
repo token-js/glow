@@ -1,0 +1,12 @@
+{
+  "recommendations": [
+    "ms-python.black-formatter",
+    "ms-python.isort",
+    "ms-python.python",
+    "ms-python.vscode-pylance",
+    "dbaeumer.vscode-eslint",
+    "esbenp.prettier-vscode",
+    "graphql.vscode-graphql",
+    "Prisma.prisma"
+  ]
+}

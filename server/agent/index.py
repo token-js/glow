@@ -1,104 +1,90 @@
+import asyncio
+import os
 from openai.types.chat import ChatCompletionMessageParam, ChatCompletionChunk
 from typing import Any, List
 from openai import OpenAI, AsyncOpenAI
 from openai import Stream
 from typing import AsyncGenerator, List, Dict, Optional
+
+from prisma import Prisma
+import tiktoken
 from livekit.plugins.openai.log import logger
-from openai.types.chat.chat_completion_chunk import ChatCompletionChunk, Choice, ChoiceDelta
+from openai.types.chat.chat_completion_chunk import (
+    ChatCompletionChunk,
+    Choice,
+    ChoiceDelta,
+)
 import aiohttp
 import json
 import uuid
 
+from server.api.constants import FINE_TUNED_MODEL
+from server.api.utils import (
+    get_final_messages_by_token_limit,
+    make_system_prompt,
+    search_memories,
+)
+from mem0 import AsyncMemoryClient
+
+
 async def generate_response(
-  llm: AsyncOpenAI,
-  conversation: List[ChatCompletionMessageParam],
+    llm: AsyncOpenAI,
+    messages: List[ChatCompletionMessageParam],
+    user_id: str,
+    timezone: str,
+    ai_first_name: str,
+    user_first_name: str,
+    user_gender: str,
 ):
-  MODEL_NAME = "ft:gpt-4o-mini-2024-07-18:glade::ARBGesfJ"
-  return llm.chat.completions.create(
-      messages=conversation, model=MODEL_NAME, stream=True
-  )
+    mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
-async def stream_inflection_response(
-    token: str,
-    context: List[Dict],
-    config: str,
-    metadata: Optional[Dict] = None
-) -> AsyncGenerator[ChatCompletionChunk, None]:
-    """
-    Streams responses from the InflectionAI API and yields ChatCompletionChunk objects.
+    (relevant_memories_with_preferences, encoding), all_memories = (
+        await asyncio.gather(
+            search_memories(
+                mem0=mem0,
+                messages=messages,
+                user_id=user_id,
+                model=FINE_TUNED_MODEL,
+            ),
+            mem0.get_all(
+                filters={"user_id": user_id},
+                version="v2",
+            ),
+        )
+    )
+    memories = [
+        memory
+        for memory in relevant_memories_with_preferences
+        if "conversation_preferences" not in memory["categories"]
+    ]
 
-    :param token: The API token provided by Inflection AI.
-    :param context: The past turns of conversation as a list of messages.
-    :param config: The model configuration to use ("inflection_3_pi" or "inflection_3_productivity").
-    :param metadata: Optional user metadata for the AI to utilize.
-    :return: An asynchronous generator yielding ChatCompletionChunk instances.
-    """
-    # Map the messages to the format expected by InflectionAI API
-    def map_message(msg):
-        role_to_type = {
-            'system': 'Instruction',
-            'user': 'Human',
-            'assistant': 'AI'
-        }
-        return {
-            'type': role_to_type.get(msg['role'], 'Human'),
-            'text': msg['content']
-        }
+    preferences = [
+        memory
+        for memory in all_memories
+        if "conversation_preferences" in memory["categories"]
+    ]
 
-    mapped_context = [map_message(msg) for msg in context]
+    system_prompt = make_system_prompt(
+        ai_first_name=ai_first_name,
+        user_first_name=user_first_name,
+        user_gender=user_gender,
+        timezone=timezone,
+        memories=memories,
+        preferences=preferences,
+    )
+    messages_with_system_prompt = messages + [
+        {"role": "system", "content": system_prompt}
+    ]
+    truncated_messages = get_final_messages_by_token_limit(
+        messages=messages_with_system_prompt,
+        model=FINE_TUNED_MODEL,
+        encoding=encoding,
+        token_limit=125000,
+    )
 
-    url = 'https://layercake.pubwestus3.inf7ks8.com/external/api/inference/streaming'
-    headers = {
-        'Authorization': f'Bearer {token}',
-        'Content-Type': 'application/json'
-    }
-    payload = {
-        'config': config,
-        'context': mapped_context
-    }
-    if metadata:
-        payload['metadata'] = metadata
+    # Get the last 2048 elements of the array because OpenAI throws an error if the array is larger.
+    truncated_messages = truncated_messages[-2048:]
 
-    # Generate a unique ID for the chat completion
-    completion_id = str(uuid.uuid4())
-    model_name = config
-
-    async with aiohttp.ClientSession() as session:
-        async with session.post(url, headers=headers, json=payload) as resp:
-            if resp.status != 200:
-                error_text = await resp.text()
-                raise Exception(f"Request failed with status {resp.status}: {error_text}")
-            async for line in resp.content:
-                line = line.decode('utf-8').strip()
-                if not line:
-                    continue  # Skip empty lines
-                if line.startswith('data: '):
-                    line = line[len('data: '):]  # Remove 'data: ' prefix
-                else:
-                    continue  # Skip lines that don't start with 'data: '
-                if line == '[DONE]':
-                    break  # End of the stream
-                try:
-                    data = json.loads(line)
-                except json.JSONDecodeError:
-                    # Optionally log the error or handle it
-                    logger.warning(f"Failed to parse JSON: {line}")
-                    continue  # Skip invalid JSON lines
-                # Create the ChoiceDelta with the content from the response
-                delta = ChoiceDelta(content=data['text'], role='assistant')
-                # Create the Choice object
-                choice = Choice(
-                    delta=delta,
-                    index=data.get('idx'),
-                    finish_reason=None,
-                    logprobs=None
-                )
-                # Create the ChatCompletionChunk object
-                chunk = ChatCompletionChunk(
-                    id=completion_id,
-                    choices=[choice],
-                    created=int(data.get('created')),
-                    model=model_name,
-                    object='chat.completion.chunk'
-                )
-                yield chunk
+    return llm.chat.completions.create(
+        messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True
+    )

@@ -26,6 +26,7 @@ export const useChat = ({
   body,
   chatId
 }: ChatOpts): UseChatReturn => {
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
   const [messages, setMessages] = useState<Message[]>(initialMessages !== undefined ? initialMessages : []);
   const [isStreaming, setIsStreaming] = useState<boolean>(false);
 
@@ -70,7 +71,7 @@ export const useChat = ({
       const response: Response = await fetch(pyAPI, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ messages: responseMessages, chat_id: chatId, ...body,  }),
+        body: JSON.stringify({ messages: responseMessages, chat_id: chatId, timezone, ...body,  }),
       });
 
       if (!response.ok) {
