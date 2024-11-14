@@ -1,5 +1,5 @@
-import React, { useRef, useEffect } from 'react';
-import { TouchableOpacity, StyleSheet, Animated } from 'react-native';
+import React, { useEffect, useRef } from 'react';
+import { Animated, StyleSheet, TouchableOpacity } from 'react-native';
 import Icon from 'react-native-vector-icons/MaterialIcons';
 import { selectedButtonColor } from '../../../lib/style';
 
@@ -32,12 +32,12 @@ export const VoiceTextToggleButton: React.FC<Props> = ({ mode, onToggle }) => {
   // Interpolate scaling values for voice and text icons
   const voiceScale = scaleAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [1, 0],
+    outputRange: [0, 1],
   });
 
   const textScale = scaleAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, 1],
+    outputRange: [1, 0],
   });
 
   // Interpolate background color values from light green to transparent
