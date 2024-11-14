@@ -167,7 +167,6 @@ async def entrypoint(ctx: JobContext):
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
         llm=LLM(
-            model="inflection_3_pi",
             user_id=participant.identity,
             chat_id=chat_id,
             user_name=name,
@@ -178,13 +177,13 @@ async def entrypoint(ctx: JobContext):
         preemptive_synthesis=True,
         # tts=openai.TTS(),
         tts=elevenlabs.TTS(
-            model_id="eleven_turbo_v2_5",
+            model_id="eleven_multilingual_v2",
             voice=elevenlabs.Voice(
                 id=voice_id,
                 name=agent_name,
                 category="premade",
                 settings=elevenlabs.VoiceSettings(
-                    stability=0.5,
+                    stability=0.3,
                     similarity_boost=0.75,
                     style=0.0,
                     use_speaker_boost=False,

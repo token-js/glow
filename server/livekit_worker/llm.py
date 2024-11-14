@@ -57,7 +57,6 @@ def convert_stream_to_coroutine(messages, chat_id, user_id, timezone: str, ai_fi
 
 @dataclass
 class Options:
-    model: str | ChatModels
     user: str | None
     user_name: str
     user_gender: str
@@ -71,7 +70,6 @@ class LLM(llm.LLM):
     def __init__(
         self,
         *,
-        model: str,
         api_key: str | None = None,
         user_id: str,
         chat_id: str,
@@ -86,7 +84,6 @@ class LLM(llm.LLM):
             raise ValueError("OpenAI API key is required")
 
         self._opts = Options(
-            model=model,
             user=user_id,
             chat_id=chat_id,
             temperature=temperature,
