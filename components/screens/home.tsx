@@ -131,7 +131,7 @@ export const HomeScreen: React.FC = () => {
 
           <View style={styles.bottomContainer}>
             <VoiceTextToggleButton mode={mode} onToggle={onToggle} />
-            
+
             <View style={styles.inputWrapper}>
               <Animated.View
                 style={[
