@@ -1,15 +1,9 @@
-import React, { useEffect, useRef } from 'react';
-import {
-  View,
-  Text,
-  TouchableOpacity,
-  StyleSheet,
-  Alert, // Optional: For user-friendly error messages
-} from 'react-native';
-import { Audio, AVPlaybackStatus } from 'expo-av';
-import { signupStyles, theme } from '../../../lib/style';
+import { Audio, AVPlaybackStatus } from "expo-av";
+import React, { useEffect, useRef } from "react";
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import { signupStyles, theme } from "../../../lib/style";
 
-type VoiceName = 'Charlotte' | 'Brian' | 'Jessica' | 'George' | 'Matilda' | 'Charlie';
+type VoiceName = "Mark" | "Amelia" | "Archer" | "Charlotte" | "Paul" | "Dakota";
 
 type Props = {
   voice: string | null;
@@ -19,38 +13,45 @@ type Props = {
 };
 
 export const VoiceNameMapping: Record<VoiceName, string> = {
-  'Charlotte': 'voice_1',
-  'Brian': 'voice_2',
-  'Jessica': 'voice_3',
-  'George': 'voice_4',
-  'Matilda': 'voice_5',
-  'Charlie': 'voice_6'
+  Mark: "voice_1",
+  Amelia: "voice_2",
+  Archer: "voice_3",
+  Charlotte: "voice_4",
+  Paul: "voice_5",
+  Dakota: "voice_6",
 };
 
-export const VoiceNames: VoiceName[] = Object.keys(VoiceNameMapping) as VoiceName[];
+export const VoiceNames: VoiceName[] = Object.keys(
+  VoiceNameMapping
+) as VoiceName[];
 
 const styles = StyleSheet.create({
   buttonGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
   },
   gridButton: {
-    width: '48%',
+    width: "48%",
     marginVertical: 5,
   },
 });
 
 const audioFiles: Record<VoiceName, any> = {
-  'Charlotte': require('../../../assets/voices/charlotte.mp3'),
-  'Brian': require('../../../assets/voices/brian.mp3'),
-  'Jessica': require('../../../assets/voices/jessica.mp3'),
-  'George': require('../../../assets/voices/george.mp3'),
-  'Matilda': require('../../../assets/voices/matilda.mp3'),
-  'Charlie': require('../../../assets/voices/charlie.mp3'),
+  Mark: require("../../../assets/voices/mark.mp3"),
+  Amelia: require("../../../assets/voices/amelia.mp3"),
+  Archer: require("../../../assets/voices/archer.mp3"),
+  Charlotte: require("../../../assets/voices/charlotte.mp3"),
+  Paul: require("../../../assets/voices/paul.mp3"),
+  Dakota: require("../../../assets/voices/dakota.mp3"),
 };
 
-export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onNext, setAIName }) => {
+export const VoiceSelector: React.FC<Props> = ({
+  voice,
+  setVoice,
+  onNext,
+  setAIName,
+}) => {
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const playVoiceAudio = async (selectedVoice: VoiceName) => {
@@ -61,7 +62,9 @@ export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onNext, setAIN
         soundRef.current = null;
       }
 
-      const { sound } = await Audio.Sound.createAsync(audioFiles[selectedVoice]);
+      const { sound } = await Audio.Sound.createAsync(
+        audioFiles[selectedVoice]
+      );
       soundRef.current = sound;
 
       await sound.playAsync();
@@ -72,7 +75,7 @@ export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onNext, setAIN
         }
       });
     } catch (error) {
-      Alert.alert('Playback Error', 'Unable to play the selected voice.');
+      Alert.alert("Playback Error", "Unable to play the selected voice.");
     }
   };
 
@@ -130,7 +133,7 @@ export const VoiceSelector: React.FC<Props> = ({ voice, setVoice, onNext, setAIN
           accessibilityLabel="Confirm"
         >
           <Text style={signupStyles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>          
+        </TouchableOpacity>
       </View>
     </View>
   );
