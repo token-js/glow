@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import os
 import asyncpg
@@ -14,11 +15,12 @@ from livekit.agents import (
 )
 from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import openai, deepgram, silero, elevenlabs
+from pydub import AudioSegment
+from livekit import rtc
 from server.livekit_worker.llm import LLM
 import sys
 from pathlib import Path
 from fastapi import HTTPException, status
-from prisma import Prisma
 from datetime import datetime
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
@@ -48,11 +50,13 @@ logger = logging.getLogger("voice-agent")
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
+
 def fetch_initial_chat_message(agent_name: str):
     return f"""
 Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun.
 Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?
 """
+
 
 async def get_chat(user_id: str, user_name: str, agent_name: str):
     database_url = os.environ.get("DATABASE_URL")
@@ -63,7 +67,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
     conn = await asyncpg.connect(database_url, statement_cache_size=0)
 
     send_first_chat_message = False
-    first_chat_message = ''
+    first_chat_message = ""
     try:
         logger.info(f"Fetching chat for user_id: {user_id}")
 
@@ -97,10 +101,10 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
             chat_id,
         )
 
-        if (len(messages) == 0):
+        if len(messages) == 0:
             message_id = cuid.cuid()
             first_chat_message = fetch_initial_chat_message(agent_name=agent_name)
-            message_role = 'assistant'
+            message_role = "assistant"
             created = datetime.now()
             modified = datetime.now()
             await conn.fetch(
@@ -113,7 +117,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
                 first_chat_message,
                 message_role,
                 created,
-                modified
+                modified,
             )
             send_first_chat_message = True
 
@@ -130,6 +134,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
 
     finally:
         await conn.close()
+
 
 async def entrypoint(ctx: JobContext):
 
@@ -150,13 +155,13 @@ async def entrypoint(ctx: JobContext):
 
     # Fetch chat data asynchronously
     chat, send_first_chat_message, first_chat_message = await get_chat(
-        user_id=user_id,
-        agent_name=agent_name,
-        user_name=name
+        user_id=user_id, agent_name=agent_name, user_name=name
     )
 
     chat_messages = [
-        llm.ChatMessage(role=message["role"], content=message["content"], id=message["id"])
+        llm.ChatMessage(
+            role=message["role"], content=message["content"], id=message["id"]
+        )
         for message in chat["messages"]
     ]
     chat_id = chat["id"]
@@ -173,10 +178,9 @@ async def entrypoint(ctx: JobContext):
             user_name=name,
             user_gender=user_gender,
             agent_name=agent_name,
-            timezone=timezone
+            timezone=timezone,
         ),
         preemptive_synthesis=True,
-        # tts=openai.TTS(),
         tts=elevenlabs.TTS(
             model_id="eleven_turbo_v2_5",
             voice=elevenlabs.Voice(
@@ -195,11 +199,125 @@ async def entrypoint(ctx: JobContext):
         chat_ctx=initial_ctx,
     )
 
+    # Initialize the filler sound player
+    filler_sound_path = os.path.join(
+        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
+        "assets",
+        "filler_sound.wav",
+    )
+    filler_sound_player = FillerSoundPlayer(
+        room=ctx.room, filler_sound_path=filler_sound_path
+    )
+
     assistant.start(ctx.room, participant)
 
-    if (send_first_chat_message):
-      await assistant.say(first_chat_message, allow_interruptions=True)
 
+    @assistant.on("user_started_speaking")
+    def on_user_started_speaking():
+        asyncio.create_task(filler_sound_player.stop())
+
+    @assistant.on("user_stopped_speaking")
+    def on_user_stopped_speaking():
+        asyncio.create_task(filler_sound_player.start())
+
+    # Event handler for when the agent starts speaking
+    @assistant.on("agent_started_speaking")
+    def on_agent_started_speaking():
+        asyncio.create_task(filler_sound_player.stop())
+
+    if send_first_chat_message:
+        await assistant.say(first_chat_message, allow_interruptions=True)
+
+
+class FillerSoundPlayer:
+    def __init__(self, room, filler_sound_path):
+        self.room = room
+        self.filler_sound_path = filler_sound_path
+        self.audio_source = rtc.AudioSource(
+            sample_rate=48000,
+            num_channels=1,
+            queue_size_ms=1000,
+        )
+        self.audio_track = rtc.LocalAudioTrack.create_audio_track(
+            "filler_sound", self.audio_source)
+        self.is_playing = False
+        self.play_task = None
+        self.publication = None  # Store the publication here
+
+    async def start(self):
+        if not self.is_playing:
+            # Publish the audio track and store the publication
+            self.publication = await self.room.local_participant.publish_track(self.audio_track)
+            self.is_playing = True
+            self.play_task = asyncio.create_task(self._play_filler_sound())
+            logger.info("Filler sound started.")
+
+    async def stop(self):
+        if self.is_playing:
+            self.play_task.cancel()
+            try:
+                await self.play_task
+            except asyncio.CancelledError:
+                pass
+            self.play_task = None
+            # Unpublish the track using the track SID from the publication
+            await self.room.local_participant.unpublish_track(self.publication.sid)
+            self.publication = None  # Reset the publication
+            self.is_playing = False
+            logger.info("Filler sound stopped.")
+
+    async def _play_filler_sound(self):
+        # Load and preprocess the audio data
+        audio = AudioSegment.from_file(self.filler_sound_path)
+        if audio.channels != 1:
+            audio = audio.set_channels(1)
+        if audio.frame_rate != 48000:
+            audio = audio.set_frame_rate(48000)
+        if audio.sample_width != 2:
+            audio = audio.set_sample_width(2)
+
+        audio_data = audio.raw_data
+        sample_rate = audio.frame_rate
+        num_channels = audio.channels
+        sample_width = audio.sample_width
+        frames_per_buffer = int(sample_rate * 0.02)  # 20ms frames
+        frame_size = frames_per_buffer * sample_width * num_channels
+
+        # Prepare frames
+        frames = []
+        position = 0
+        while position + frame_size <= len(audio_data):
+            frame_data = audio_data[position:position + frame_size]
+            position += frame_size
+            samples_per_channel = len(frame_data) // (num_channels * sample_width)
+            frame = rtc.AudioFrame(
+                data=frame_data,
+                sample_rate=sample_rate,
+                num_channels=num_channels,
+                samples_per_channel=samples_per_channel,
+            )
+            frames.append(frame)
+
+        # Include any remaining data
+        if position < len(audio_data):
+            frame_data = audio_data[position:]
+            samples_per_channel = len(frame_data) // (num_channels * sample_width)
+            frame = rtc.AudioFrame(
+                data=frame_data,
+                sample_rate=sample_rate,
+                num_channels=num_channels,
+                samples_per_channel=samples_per_channel,
+            )
+            frames.append(frame)
+
+        # Initialize frame index
+        frame_index = 0
+
+        while True:
+            # Feed frames continuously
+            frame = frames[frame_index]
+            await self.audio_source.capture_frame(frame)
+            frame_index = (frame_index + 1) % len(frames)
 
 if __name__ == "__main__":
     cli.run_app(

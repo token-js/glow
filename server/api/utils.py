@@ -327,7 +327,7 @@ def make_system_prompt(
     if preferences:
         preferences_with_tags = []
         for preference in preferences:
-            preference_memory = preference.memory
+            preference_memory = preference['memory']
             if not preference_memory:
                 continue
             preferences_with_tags.append(
