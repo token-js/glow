@@ -25,5 +25,6 @@ jobs:
           flyctl deploy --remote-only \
             --config ops/fly/fly.prod.toml \
             --app glow-api-prod \
+            --wait-timeout 900 \
         env:
           FLY_API_TOKEN: ${{ secrets.FLY_PROD_API_TOKEN }}

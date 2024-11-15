@@ -22,6 +22,7 @@ from prisma import Prisma
 from datetime import datetime
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
+from .voices import VoiceSettingMapping
 
 sentry_sdk.init(
     dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
@@ -48,11 +49,13 @@ logger = logging.getLogger("voice-agent")
 def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
+
 def fetch_initial_chat_message(agent_name: str):
     return f"""
 Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun.
 Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?
 """
+
 
 async def get_chat(user_id: str, user_name: str, agent_name: str):
     database_url = os.environ.get("DATABASE_URL")
@@ -63,7 +66,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
     conn = await asyncpg.connect(database_url, statement_cache_size=0)
 
     send_first_chat_message = False
-    first_chat_message = ''
+    first_chat_message = ""
     try:
         logger.info(f"Fetching chat for user_id: {user_id}")
 
@@ -97,10 +100,10 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
             chat_id,
         )
 
-        if (len(messages) == 0):
+        if len(messages) == 0:
             message_id = cuid.cuid()
             first_chat_message = fetch_initial_chat_message(agent_name=agent_name)
-            message_role = 'assistant'
+            message_role = "assistant"
             created = datetime.now()
             modified = datetime.now()
             await conn.fetch(
@@ -113,7 +116,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
                 first_chat_message,
                 message_role,
                 created,
-                modified
+                modified,
             )
             send_first_chat_message = True
 
@@ -131,6 +134,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
     finally:
         await conn.close()
 
+
 async def entrypoint(ctx: JobContext):
 
     logger.info(f"Connecting to room {ctx.room.name}")
@@ -140,23 +144,26 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"Starting voice assistant for participant {participant.identity}")
 
-    # Fetch the voice for this user
-    voice_id = participant.attributes.get("voice_id")
+    # Fetch the users settings
+    voice = participant.attributes.get("voice")
     agent_name = participant.attributes.get("agent_name")
     user_gender = participant.attributes.get("user_gender")
     name = participant.attributes.get("name")
     timezone = participant.attributes.get("timezone")
     user_id = participant.identity
 
+    # Fetch the detailed voice settings
+    voice_settings = VoiceSettingMapping[voice]
+
     # Fetch chat data asynchronously
     chat, send_first_chat_message, first_chat_message = await get_chat(
-        user_id=user_id,
-        agent_name=agent_name,
-        user_name=name
+        user_id=user_id, agent_name=agent_name, user_name=name
     )
 
     chat_messages = [
-        llm.ChatMessage(role=message["role"], content=message["content"], id=message["id"])
+        llm.ChatMessage(
+            role=message["role"], content=message["content"], id=message["id"]
+        )
         for message in chat["messages"]
     ]
     chat_id = chat["id"]
@@ -167,27 +174,26 @@ async def entrypoint(ctx: JobContext):
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
         llm=LLM(
-            model="inflection_3_pi",
             user_id=participant.identity,
             chat_id=chat_id,
             user_name=name,
             user_gender=user_gender,
             agent_name=agent_name,
-            timezone=timezone
+            timezone=timezone,
         ),
         preemptive_synthesis=True,
         # tts=openai.TTS(),
         tts=elevenlabs.TTS(
-            model_id="eleven_turbo_v2_5",
+            model_id=voice_settings.model,
             voice=elevenlabs.Voice(
-                id=voice_id,
+                id=voice_settings.voice_id,
                 name=agent_name,
                 category="premade",
                 settings=elevenlabs.VoiceSettings(
-                    stability=0.5,
-                    similarity_boost=0.75,
-                    style=0.0,
-                    use_speaker_boost=False,
+                    stability=voice_settings.stability,
+                    similarity_boost=voice_settings.similarity,
+                    style=voice_settings.style,
+                    use_speaker_boost=voice_settings.speaker_boost,
                 ),
             ),
             api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
@@ -197,8 +203,8 @@ async def entrypoint(ctx: JobContext):
 
     assistant.start(ctx.room, participant)
 
-    if (send_first_chat_message):
-      await assistant.say(first_chat_message, allow_interruptions=True)
+    if send_first_chat_message:
+        await assistant.say(first_chat_message, allow_interruptions=True)
 
 
 if __name__ == "__main__":
