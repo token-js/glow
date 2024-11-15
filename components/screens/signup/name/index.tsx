@@ -1,18 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState } from "react";
 
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-} from 'react-native';
-import { signupStyles, theme } from '../../../lib/style';
+import { signupStyles, theme } from "@/lib/style";
+import { Text, TextInput, TouchableOpacity, View } from "react-native";
 
 type Props = {
-  setName: React.Dispatch<React.SetStateAction<string>>
-  name: string
+  setName: React.Dispatch<React.SetStateAction<string>>;
+  name: string;
   onNext: () => void;
-}
+};
 
 export const NameSection: React.FC<Props> = ({ setName, name, onNext }) => {
   const [isFocused, setIsFocused] = useState(false);
@@ -25,7 +20,7 @@ export const NameSection: React.FC<Props> = ({ setName, name, onNext }) => {
         <TextInput
           style={[
             theme.input,
-            isFocused && theme.inputFocused // Apply focus style conditionally
+            isFocused && theme.inputFocused, // Apply focus style conditionally
           ]}
           placeholder="Type your name"
           placeholderTextColor="#888"
@@ -38,14 +33,14 @@ export const NameSection: React.FC<Props> = ({ setName, name, onNext }) => {
         />
       </View>
       <TouchableOpacity
-          style={signupStyles.confirmButton}
-          onPress={onNext}
-          accessible={true}
-          disabled={!name}
-          accessibilityLabel="Confirm"
-        >
-          <Text style={signupStyles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>   
+        style={signupStyles.confirmButton}
+        onPress={onNext}
+        accessible={true}
+        disabled={!name}
+        accessibilityLabel="Confirm"
+      >
+        <Text style={signupStyles.confirmButtonText}>Confirm</Text>
+      </TouchableOpacity>
     </View>
-  )
-}
+  );
+};
