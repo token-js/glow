@@ -19,6 +19,7 @@ CharlotteSettings = VoiceSettings(
     voice_id="XB0fDUnXU5powFXDhCwa",
     stability=0.5,
     similarity=0.75,
+    exaggeration=0,
     speaker_boost=True,
     style=0.0,
 )
@@ -28,6 +29,7 @@ AmeliaSettings = VoiceSettings(
     voice_id="ZF6FPAbjXT4488VcRRnw",
     stability=0.5,
     similarity=0.75,
+    exaggeration=0,
     speaker_boost=False,
     style=0.0,
 )
@@ -37,6 +39,7 @@ DakotaSettings = VoiceSettings(
     voice_id="P7x743VjyZEOihNNygQ9",
     stability=0.5,
     similarity=0.75,
+    exaggeration=0,
     speaker_boost=False,
     style=0.0,
 )
@@ -46,6 +49,7 @@ MarkSettings = VoiceSettings(
     voice_id="UgBBYS2sOqTuMpoF3BR0",
     stability=0.5,
     similarity=0.75,
+    exaggeration=0,
     speaker_boost=True,
     style=0.0,
 )
@@ -55,6 +59,7 @@ ArcherSettings = VoiceSettings(
     voice_id="L0Dsvb3SLTyegXwtm47J",
     stability=0.5,
     similarity=0.75,
+    exaggeration=0,
     speaker_boost=False,
     style=0.0,
 )
@@ -64,6 +69,7 @@ PaulSettings = VoiceSettings(
     voice_id="WLKp2jV6nrS8aMkPPDRO",
     stability=0.5,
     similarity=0.75,
+    exaggeration=0,
     speaker_boost=False,
     style=0.0,
 )
