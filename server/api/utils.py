@@ -15,6 +15,7 @@ from supabase import create_client, Client
 from openai.types.completion_usage import CompletionUsage
 from mem0 import AsyncMemoryClient, MemoryClient
 
+
 # Verifies the cron secret token in the authorization header
 async def authorize_cron(request: Request):
     # Get the token from the environment variable
@@ -72,8 +73,7 @@ def create_supabase_client():
 
 # Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
 def estimate_tokens_for_messages(
-    messages: List[ChatCompletionMessageParam],
-    encoding: tiktoken.Encoding
+    messages: List[ChatCompletionMessageParam], encoding: tiktoken.Encoding
 ) -> int:
     # Check that each message is a ChatCompletionMessageParam. Particularly, it's important to check
     # that `messages` does not contain entries that are a superset of the ChatCompletionMessageParam
@@ -95,11 +95,13 @@ def estimate_tokens_for_messages(
     num_tokens += 3  # Every reply is primed with <|start|>assistant<|message|>
     return num_tokens
 
+
 def find_last_agent_message(conversation: List[ChatCompletionMessageParam]) -> str:
     for msg in reversed(conversation):
         if msg["role"] == "assistant":
             return msg["content"]
     raise Exception("No agent message found.")
+
 
 def calculate_cost(usage: CompletionUsage, model: str):
     if model == "gpt-4o-mini-2024-07-18":
@@ -122,6 +124,7 @@ def calculate_cost(usage: CompletionUsage, model: str):
         "prompt_tokens": usage.prompt_tokens,
         "completion_tokens": usage.completion_tokens,
     }
+
 
 def is_chat_completion_system_message_param(obj: Any) -> bool:
     if not isinstance(obj, dict):
@@ -167,15 +170,18 @@ def is_chat_completion_message_param(obj: Any) -> bool:
         or is_chat_completion_tool_message_param(obj)
     )
 
+
 def get_final_messages_by_token_limit(
     messages: List[ChatCompletionMessageParam],
     model: str,
     encoding: tiktoken.Encoding,
-    token_limit: int
+    token_limit: int,
 ) -> List[ChatCompletionMessageParam]:
     max_context_window = CONTEXT_WINDOWS[model]
     if token_limit > max_context_window:
-        raise ValueError("Token limit exceeds the maximum context window for the model.")
+        raise ValueError(
+            "Token limit exceeds the maximum context window for the model."
+        )
 
     messages_copy = copy.deepcopy(messages)
 
@@ -193,7 +199,7 @@ def get_final_messages_by_token_limit(
                 if num_messages == 1:
                     return []
                 else:
-                    return messages_copy[-(num_messages - 1):]
+                    return messages_copy[-(num_messages - 1) :]
         # All messages fit within the token limit
         return messages_copy
     else:
@@ -218,11 +224,12 @@ def get_final_messages_by_token_limit(
 
         return messages_copy[ans:]
 
+
 async def search_memories(
     mem0: AsyncMemoryClient,
     messages: List[ChatCompletionMessageParam],
     user_id: str,
-    model: str
+    model: str,
 ) -> Tuple[List[Dict[str, Any]], tiktoken.Encoding]:
     encoding = tiktoken.get_encoding("cl100k_base")
 
@@ -230,13 +237,17 @@ async def search_memories(
     # If these final messages don't contain many words, we include more messages, up until 150
     # tokens, to provide more context for the search query. We always use at least 4 messages in the
     # query.
-    num_messages = max(4, len(get_final_messages_by_token_limit(messages=messages, model=model, encoding=encoding, token_limit=150)))
+    num_messages = max(
+        4,
+        len(
+            get_final_messages_by_token_limit(
+                messages=messages, model=model, encoding=encoding, token_limit=150
+            )
+        ),
+    )
 
     truncated_messages = messages[-num_messages:]
-    message_content = "\n".join(
-        msg['content']
-        for msg in truncated_messages[-4:]
-    )
+    message_content = "\n".join(msg["content"] for msg in truncated_messages[-4:])
 
     # Search for the most relevant memories.
     #
@@ -256,14 +267,17 @@ async def search_memories(
     #
     # Mem0's `search` function won't return facts that have been deleted, so we don't need to filter
     # those out manually.
-    memories = await mem0.search(query=message_content, top_k=25, rerank=True, filters={"user_id": user_id}, version="v2")
+    memories = await mem0.search(
+        query=message_content,
+        top_k=25,
+        rerank=True,
+        filters={"user_id": user_id},
+        version="v2",
+    )
     return memories, encoding
 
-def add_memories(
-    messages: List[ChatCompletionMessageParam],
-    user_id: str,
-    model: str
-):
+
+def add_memories(messages: List[ChatCompletionMessageParam], user_id: str, model: str):
     # Initialize Mem0 with the non-async client because this function isn't meant to be awaited.
     # (It's called from a synchronous generator in production).
     mem0 = MemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
@@ -275,10 +289,19 @@ def add_memories(
     # conversational context, which it wouldn't get if we just submitted the latest user and
     # assistant message. We always include at least four messages total. If the messages don't
     # contain many tokens, we include more messages, up until 150 tokens.
-    num_messages = max(4, len(get_final_messages_by_token_limit(messages=messages, model=model, encoding=encoding, token_limit=150)))
+    num_messages = max(
+        4,
+        len(
+            get_final_messages_by_token_limit(
+                messages=messages, model=model, encoding=encoding, token_limit=150
+            )
+        ),
+    )
 
     custom_categories = [
-        {"conversation_preferences": "The user's preferences for how the AI should respond."},
+        {
+            "conversation_preferences": "The user's preferences for how the AI should respond."
+        },
     ]
     # A string mentioning an additional rule for Mem0 to use when creating facts. These instructions
     # say that the resulting facts should mention the assistant explicitly because this is important
@@ -286,7 +309,13 @@ def add_memories(
     includes = "The user's preferences for how the AI should respond. These facts must mention the assistant explicitly; for example, say 'User prefers the assistant to respond with emojis', not 'User prefers responses with emojis'."
 
     truncated_messages = messages[-num_messages:]
-    mem0.add(messages=truncated_messages, user_id=user_id, includes=includes, custom_categories=custom_categories)
+    mem0.add(
+        messages=truncated_messages,
+        user_id=user_id,
+        includes=includes,
+        custom_categories=custom_categories,
+    )
+
 
 # If we change this prompt in production, we should strongly consider fine-tuning the LLM again with
 # the new system prompt.
@@ -296,50 +325,55 @@ def make_system_prompt(
     user_gender: str,
     timezone: str,
     memories: List[Dict[str, Any]],
-    preferences: List[Dict[str, Any]]
+    preferences: List[Dict[str, Any]],
 ) -> str:
     current_time = datetime.now()
 
-    memories_str = ''
-    preferences_str = ''
+    memories_str = ""
+    preferences_str = ""
 
     if memories:
         memories_with_time = []
         for fact in memories:
-            memory = fact['memory']
+            memory = fact["memory"]
             if not memory:
                 continue
 
-            if fact['updated_at']:
-                time_ago_formatted = time_ago(current_time, datetime.fromisoformat(fact['updated_at']), timezone)
-            elif fact['created_at']:
-                time_ago_formatted = time_ago(current_time, datetime.fromisoformat(fact['created_at']), timezone)
+            if fact["updated_at"]:
+                time_ago_formatted = time_ago(
+                    current_time, datetime.fromisoformat(fact["updated_at"]), timezone
+                )
+            elif fact["created_at"]:
+                time_ago_formatted = time_ago(
+                    current_time, datetime.fromisoformat(fact["created_at"]), timezone
+                )
             else:
-                time_ago_formatted = 'Unknown'
+                time_ago_formatted = "Unknown"
 
             memories_with_time.append(
                 f"<MEMORY>\nMemory: {memory}\nTime: {time_ago_formatted}\n</MEMORY>"
             )
 
-        formatted_memories = '\n'.join(memories_with_time)
+        formatted_memories = "\n".join(memories_with_time)
         memories_str = f"""\n\nBelow is a list of memories from your previous conversations with {user_first_name}. These memories may or may not be relevant to the current conversation. Each memory is enclosed within <MEMORY> tags and includes a relative time reference (e.g., 'One week ago') indicating when the memory was created.\n{formatted_memories}"""
 
     if preferences:
         preferences_with_tags = []
         for preference in preferences:
-            preference_memory = preference['memory']
+            preference_memory = preference["memory"]
             if not preference_memory:
                 continue
             preferences_with_tags.append(
                 f"<PREFERENCE>\n{preference_memory}\n</PREFERENCE>"
             )
 
-        formatted_preferences = '\n'.join(preferences_with_tags)
+        formatted_preferences = "\n".join(preferences_with_tags)
         preferences_str = f"""\n\nBelow is a list of preferences for how {user_first_name} prefers you respond. Each preference is enclosed within <PREFERENCE> tags.\n{formatted_preferences}"""
 
     system_prompt = f"""Your name is {ai_first_name}. You are talking to {user_first_name}, whose gender is: {user_gender}.{memories_str}{preferences_str}"""
 
     return system_prompt
+
 
 def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) -> str:
     # Convert times to the specified timezone

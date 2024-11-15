@@ -1,35 +1,33 @@
+import { supabase } from "@/lib/supabase";
 import {
   GoogleSignin,
-  GoogleSigninButton,
   statusCodes,
-} from '@react-native-google-signin/google-signin'
-import { supabase } from '../../../lib/supabase'
-import { Session, User } from '@supabase/supabase-js'
-import { View, StyleSheet, Text } from 'react-native'
-import { TouchableOpacity } from 'react-native-gesture-handler'
-import { GoogleIcon } from './icon'
+} from "@react-native-google-signin/google-signin";
+import { Session, User } from "@supabase/supabase-js";
+import { StyleSheet, Text, View } from "react-native";
+import { TouchableOpacity } from "react-native-gesture-handler";
+import { GoogleIcon } from "./icon";
 
 type Props = {
-  handleDidSignin: (user: User, session: Session) => Promise<void>
-}
+  handleDidSignin: (user: User, session: Session) => Promise<void>;
+};
 
 export const SignInWithGoogle: React.FC<Props> = ({ handleDidSignin }) => {
-
   const onPress = async () => {
     try {
-      await GoogleSignin.hasPlayServices()
-      const userInfo = await GoogleSignin.signIn()
+      await GoogleSignin.hasPlayServices();
+      const userInfo = await GoogleSignin.signIn();
       if (userInfo.data?.idToken) {
         const { data, error } = await supabase.auth.signInWithIdToken({
-          provider: 'google',
+          provider: "google",
           token: userInfo.data.idToken,
-        })
+        });
 
         if (data.user) {
-          await handleDidSignin(data.user, data.session)
+          await handleDidSignin(data.user, data.session);
         }
       } else {
-        throw new Error('no ID token present!')
+        throw new Error("no ID token present!");
       }
     } catch (error: any) {
       if (error.code === statusCodes.SIGN_IN_CANCELLED) {
@@ -39,10 +37,10 @@ export const SignInWithGoogle: React.FC<Props> = ({ handleDidSignin }) => {
       } else if (error.code === statusCodes.PLAY_SERVICES_NOT_AVAILABLE) {
         // play services not available or outdated
       } else {
-        throw error
+        throw error;
       }
     }
-  }
+  };
 
   return (
     <TouchableOpacity style={styles.button} onPress={onPress}>
@@ -51,27 +49,27 @@ export const SignInWithGoogle: React.FC<Props> = ({ handleDidSignin }) => {
         <Text style={styles.text}>Sign in with Google</Text>
       </View>
     </TouchableOpacity>
-  )
-}
+  );
+};
 
 const styles = StyleSheet.create({
   button: {
-    backgroundColor: '#FFFFFF',
-    borderColor: '#DDDDDD',
+    backgroundColor: "#FFFFFF",
+    borderColor: "#DDDDDD",
     borderWidth: 1,
     borderRadius: 5,
     paddingHorizontal: 24,
-    alignSelf: 'center',
+    alignSelf: "center",
     width: 300,
     height: 50,
-    marginTop: 10
+    marginTop: 10,
   },
   content: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    width: '100%',
-    height: '100%'
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    width: "100%",
+    height: "100%",
   },
   logo: {
     width: 18,
@@ -79,8 +77,8 @@ const styles = StyleSheet.create({
     marginRight: 12,
   },
   text: {
-    color: '#757575',
+    color: "#757575",
     fontSize: 20,
-    marginLeft: 5
+    marginLeft: 5,
   },
 });

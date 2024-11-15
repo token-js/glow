@@ -1,24 +1,21 @@
-import React, { useState, useRef, ReactElement, useEffect } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  StyleSheet,
-  Animated,
-  Easing,
-} from 'react-native';
-import { signupStyles, theme } from '../../../lib/style';
+import { signupStyles, theme } from "@/lib/style";
+import React from "react";
+import { Text, TouchableOpacity, View } from "react-native";
 
 type Props = {
-  name: string
-  setGender: React.Dispatch<React.SetStateAction<string>>
-  gender: string | null
+  name: string;
+  setGender: React.Dispatch<React.SetStateAction<string>>;
+  gender: string | null;
   onNext: () => void;
-}
+};
 
-export const GenderSection: React.FC<Props> = ({ name, setGender, gender, onNext }) => {
-  const genders = ['Male', 'Female', 'Nonbinary'];
+export const GenderSection: React.FC<Props> = ({
+  name,
+  setGender,
+  gender,
+  onNext,
+}) => {
+  const genders = ["Male", "Female", "Nonbinary"];
 
   const handleGenderSelect = async (selectedVoice: string) => {
     setGender(selectedVoice);
@@ -33,10 +30,7 @@ export const GenderSection: React.FC<Props> = ({ name, setGender, gender, onNext
           {genders.map((g) => (
             <TouchableOpacity
               key={g}
-              style={[
-                theme.button,
-                gender === g && theme.selectedButton,
-              ]}
+              style={[theme.button, gender === g && theme.selectedButton]}
               onPress={() => handleGenderSelect(g)}
               accessible={true}
               accessibilityLabel={`Select ${g}`}
@@ -60,8 +54,8 @@ export const GenderSection: React.FC<Props> = ({ name, setGender, gender, onNext
           accessibilityLabel="Confirm"
         >
           <Text style={signupStyles.confirmButtonText}>Confirm</Text>
-        </TouchableOpacity>          
+        </TouchableOpacity>
       </View>
     </View>
-  )
-}
+  );
+};

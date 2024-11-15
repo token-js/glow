@@ -24,6 +24,7 @@ from fastapi import HTTPException, status
 from datetime import datetime
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
+from .voices import VoiceSettingMapping
 
 sentry_sdk.init(
     dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
@@ -145,13 +146,16 @@ async def entrypoint(ctx: JobContext):
     participant = await ctx.wait_for_participant()
     logger.info(f"Starting voice assistant for participant {participant.identity}")
 
-    # Fetch the voice for this user
-    voice_id = participant.attributes.get("voice_id")
+    # Fetch the users settings
+    voice = participant.attributes.get("voice")
     agent_name = participant.attributes.get("agent_name")
     user_gender = participant.attributes.get("user_gender")
     name = participant.attributes.get("name")
     timezone = participant.attributes.get("timezone")
     user_id = participant.identity
+
+    # Fetch the detailed voice settings
+    voice_settings = VoiceSettingMapping[voice]
 
     # Fetch chat data asynchronously
     chat, send_first_chat_message, first_chat_message = await get_chat(
@@ -172,7 +176,6 @@ async def entrypoint(ctx: JobContext):
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
         llm=LLM(
-            model="inflection_3_pi",
             user_id=participant.identity,
             chat_id=chat_id,
             user_name=name,
@@ -182,16 +185,16 @@ async def entrypoint(ctx: JobContext):
         ),
         preemptive_synthesis=True,
         tts=elevenlabs.TTS(
-            model_id="eleven_turbo_v2_5",
+            model_id=voice_settings.model,
             voice=elevenlabs.Voice(
-                id=voice_id,
+                id=voice_settings.voice_id,
                 name=agent_name,
                 category="premade",
                 settings=elevenlabs.VoiceSettings(
-                    stability=0.5,
-                    similarity_boost=0.75,
-                    style=0.0,
-                    use_speaker_boost=False,
+                    stability=voice_settings.stability,
+                    similarity_boost=voice_settings.similarity,
+                    style=voice_settings.style,
+                    use_speaker_boost=voice_settings.speaker_boost,
                 ),
             ),
             api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
@@ -210,7 +213,6 @@ async def entrypoint(ctx: JobContext):
     )
 
     assistant.start(ctx.room, participant)
-
 
     @assistant.on("user_started_speaking")
     def on_user_started_speaking():
@@ -239,7 +241,8 @@ class FillerSoundPlayer:
             queue_size_ms=1000,
         )
         self.audio_track = rtc.LocalAudioTrack.create_audio_track(
-            "filler_sound", self.audio_source)
+            "filler_sound", self.audio_source
+        )
         self.is_playing = False
         self.play_task = None
         self.publication = None  # Store the publication here
@@ -247,7 +250,9 @@ class FillerSoundPlayer:
     async def start(self):
         if not self.is_playing:
             # Publish the audio track and store the publication
-            self.publication = await self.room.local_participant.publish_track(self.audio_track)
+            self.publication = await self.room.local_participant.publish_track(
+                self.audio_track
+            )
             self.is_playing = True
             self.play_task = asyncio.create_task(self._play_filler_sound())
             logger.info("Filler sound started.")
@@ -287,7 +292,7 @@ class FillerSoundPlayer:
         frames = []
         position = 0
         while position + frame_size <= len(audio_data):
-            frame_data = audio_data[position:position + frame_size]
+            frame_data = audio_data[position : position + frame_size]
             position += frame_size
             samples_per_channel = len(frame_data) // (num_channels * sample_width)
             frame = rtc.AudioFrame(
@@ -318,6 +323,7 @@ class FillerSoundPlayer:
             frame = frames[frame_index]
             await self.audio_source.capture_frame(frame)
             frame_index = (frame_index + 1) % len(frames)
+
 
 if __name__ == "__main__":
     cli.run_app(
