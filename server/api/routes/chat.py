@@ -1,5 +1,7 @@
 import os
+import threading
 from typing import Any, List
+import httpx
 from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from openai import OpenAI
@@ -118,7 +120,7 @@ async def update_chat(
     await prisma.disconnect()
 
 
-def call_update_chat(
+async def call_update_chat(
     messages: List[dict],
     agent_response: str,
     user_message_timestamp: datetime,
@@ -141,11 +143,14 @@ def call_update_chat(
         "Content-Type": "application/json",
         "Authorization": f"Bearer {os.environ.get('CRON_SECRET')}",
     }
-    requests.post(
-        f"https://{os.environ.get('EXPO_PUBLIC_API_URL')}/api/updateChat",
-        json=data,
-        headers=headers,
-    )
+
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            f"https://{os.environ.get('EXPO_PUBLIC_API_URL')}/api/updateChat",
+            json=data,
+            headers=headers,
+        )
+        response.raise_for_status()
 
 
 def stream_and_update_chat(
@@ -193,9 +198,42 @@ def stream_and_update_chat(
                     content = choice.delta.content
                     agent_response += content
 
-    # Append new messages to the chat
+    # Run asynchronous operations in a separate thread, which is necessary to prevent the main
+    # thread from getting blocked during synchronous tasks with high latency, like network requests.
+    # This is important when streaming voice responses because the voice will pause in the middle of
+    # its response if a synchronous task is running. The voice can pause midway in the following
+    # scenario:
+    # 1. The conversational LLM's response finishes streaming very quickly, causing the stream
+    #    processing logic to also finish quickly. (I.e. all of the chunks are yielded).
+    # 2. While the voice is speaking, synchronous tasks such as analytics calls execute, causing the
+    #    voice response to halt until the synchronous task ends.
+    thread = threading.Thread(
+        target=lambda: asyncio.run(
+            final_processing_coroutine(
+                messages=messages,
+                agent_response=agent_response,
+                chat_id=chat_id,
+                user_id=user_id,
+                chat_type=chat_type,
+                user_message_timestamp=user_message_timestamp
+            )
+        ),
+        daemon=True,
+    )
+    thread.start()
+
+
+async def final_processing_coroutine(
+    messages: List[dict],
+    agent_response: str,
+    chat_id: str,
+    user_id: str,
+    chat_type: str,
+    user_message_timestamp: datetime
+) -> None:
     agent_message_timestamp = datetime.now()
-    call_update_chat(
+
+    await call_update_chat(
         messages=messages,
         agent_response=agent_response,
         chat_id=chat_id,
@@ -203,15 +241,13 @@ def stream_and_update_chat(
         agent_message_timestamp=agent_message_timestamp,
     )
 
-    # Add long-term memories
-    add_memories(
+    await add_memories(
         messages=messages + [{"role": "assistant", "content": agent_response}],
         user_id=user_id,
         model=FINE_TUNED_MODEL,
     )
 
-    # Would be nice to record usage here
-    track_sent_message(
+    await track_sent_message(
         user_id=user_id,
         chat_id=chat_id,
         chat_type=chat_type,

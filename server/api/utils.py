@@ -277,10 +277,8 @@ async def search_memories(
     return memories, encoding
 
 
-def add_memories(messages: List[ChatCompletionMessageParam], user_id: str, model: str):
-    # Initialize Mem0 with the non-async client because this function isn't meant to be awaited.
-    # (It's called from a synchronous generator in production).
-    mem0 = MemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
+async def add_memories(messages: List[ChatCompletionMessageParam], user_id: str, model: str):
+    mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
     encoding = tiktoken.get_encoding("cl100k_base")
 
@@ -309,7 +307,7 @@ def add_memories(messages: List[ChatCompletionMessageParam], user_id: str, model
     includes = "The user's preferences for how the AI should respond. These facts must mention the assistant explicitly; for example, say 'User prefers the assistant to respond with emojis', not 'User prefers responses with emojis'."
 
     truncated_messages = messages[-num_messages:]
-    mem0.add(
+    await mem0.add(
         messages=truncated_messages,
         user_id=user_id,
         includes=includes,

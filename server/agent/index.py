@@ -38,19 +38,17 @@ async def generate_response(
 ):
     mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
-    (relevant_memories_with_preferences, encoding), all_memories = (
-        await asyncio.gather(
-            search_memories(
-                mem0=mem0,
-                messages=messages,
-                user_id=user_id,
-                model=FINE_TUNED_MODEL,
-            ),
-            mem0.get_all(
-                filters={"user_id": user_id},
-                version="v2",
-            ),
-        )
+    (relevant_memories_with_preferences, encoding), all_memories = await asyncio.gather(
+        search_memories(
+            mem0=mem0,
+            messages=messages,
+            user_id=user_id,
+            model=FINE_TUNED_MODEL,
+        ),
+        mem0.get_all(
+            filters={"user_id": user_id},
+            version="v2",
+        ),
     )
     memories = [
         memory
