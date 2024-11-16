@@ -1,7 +1,13 @@
 import React, { useState } from "react";
 
 import { signupStyles, theme } from "@/lib/style";
-import { Text, TextInput, TouchableOpacity, View } from "react-native";
+import {
+  Text,
+  TextInput,
+  TextStyle,
+  TouchableOpacity,
+  View,
+} from "react-native";
 
 type Props = {
   setAIName: React.Dispatch<React.SetStateAction<string>>;
@@ -9,29 +15,49 @@ type Props = {
   onFinish: () => Promise<void>;
 };
 
+export const AINameInput: React.FC<
+  Omit<Props, "onFinish"> & {
+    textAlign?: TextStyle["textAlign"];
+  }
+> = ({ setAIName, aiName, textAlign }) => {
+  const [isFocused, setIsFocused] = useState(false);
+
+  return (
+    <TextInput
+      style={[theme.input, isFocused && theme.inputFocused, { textAlign }]}
+      placeholder="Type your assistants name"
+      placeholderTextColor="#888"
+      value={aiName}
+      onChangeText={setAIName}
+      onFocus={() => setIsFocused(true)}
+      onBlur={() => setIsFocused(false)}
+      accessible={true}
+      accessibilityLabel="Assistant Name Input"
+      returnKeyType="none"
+    />
+  );
+};
+
 export const AINameSection: React.FC<Props> = ({
   setAIName,
   aiName,
   onFinish,
 }) => {
-  const [isFocused, setIsFocused] = useState(false);
-
   return (
     <View style={signupStyles.sectionContent}>
       <View />
       <View style={signupStyles.sectionMainContent}>
-        <Text style={theme.title}>Customize your assistant's name.</Text>
-        <TextInput
-          style={[theme.input, isFocused && theme.inputFocused]}
-          placeholder="Type your assistants name"
-          placeholderTextColor="#888"
-          value={aiName}
-          onChangeText={setAIName}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
-          accessible={true}
-          accessibilityLabel="Assistant Name Input"
-        />
+        <Text
+          style={[
+            theme.title,
+            {
+              marginBottom: 20,
+            },
+          ]}
+        >
+          Customize your assistant's name.
+        </Text>
+        <AINameInput setAIName={setAIName} aiName={aiName} textAlign="center" />
       </View>
       <TouchableOpacity
         style={signupStyles.confirmButton}

@@ -26,7 +26,16 @@ export const GenderSection: React.FC<Props> = ({
       <View style={signupStyles.sectionContent}>
         <View />
         <View style={signupStyles.sectionMainContent}>
-          <Text style={theme.title}>Hi {name}, what's your gender?</Text>
+          <Text
+            style={[
+              theme.title,
+              {
+                marginBottom: 20,
+              },
+            ]}
+          >
+            Hi {name}, what's your gender?
+          </Text>
           {genders.map((g) => (
             <TouchableOpacity
               key={g}

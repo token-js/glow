@@ -4,15 +4,22 @@ import React, { useEffect, useRef } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
 
 type VoiceName = "Mark" | "Amelia" | "Archer" | "Charlotte" | "Paul" | "Dakota";
+export type VoiceKey =
+  | "voice_1"
+  | "voice_2"
+  | "voice_3"
+  | "voice_4"
+  | "voice_5"
+  | "voice_6";
 
 type Props = {
-  voice: string | null;
-  setVoice: React.Dispatch<React.SetStateAction<string>>;
+  voice: VoiceKey | null;
+  setVoice: React.Dispatch<React.SetStateAction<VoiceKey | null>>;
   setAIName: React.Dispatch<React.SetStateAction<string>>;
   onNext: () => void;
 };
 
-export const VoiceNameMapping: Record<VoiceName, string> = {
+export const VoiceNameMapping: Record<VoiceName, VoiceKey> = {
   Mark: "voice_1",
   Amelia: "voice_2",
   Archer: "voice_3",
@@ -33,27 +40,34 @@ const styles = StyleSheet.create({
   },
   gridButton: {
     width: "48%",
-    marginVertical: 5,
   },
 });
 
 const audioFiles: Record<VoiceName, any> = {
-  Mark: require("@/assets/voices/mark.mp3"),
-  Amelia: require("@/assets/voices/amelia.mp3"),
-  Archer: require("@/assets/voices/archer.mp3"),
-  Charlotte: require("@/assets/voices/charlotte.mp3"),
-  Paul: require("@/assets/voices/paul.mp3"),
-  Dakota: require("@/assets/voices/dakota.mp3"),
+  Mark: require("../../../../assets/voices/mark.mp3"),
+  Amelia: require("../../../../assets/voices/amelia.mp3"),
+  Archer: require("../../../../assets/voices/archer.mp3"),
+  Charlotte: require("../../../../assets/voices/charlotte.mp3"),
+  Paul: require("../../../../assets/voices/paul.mp3"),
+  Dakota: require("../../../../assets/voices/dakota.mp3"),
 };
 
-export const VoicePicker: React.FC<Props> = ({
+export const VoicePicker = ({
   voice,
   setVoice,
   setAIName,
+}: {
+  voice: VoiceKey | null;
+  setVoice: React.Dispatch<React.SetStateAction<VoiceKey | null>>;
+  setAIName?: React.Dispatch<React.SetStateAction<string>>;
 }) => {
   const soundRef = useRef<Audio.Sound | null>(null);
 
   const playVoiceAudio = async (selectedVoice: VoiceName) => {
+    await Audio.setAudioModeAsync({
+      playsInSilentModeIOS: true,
+    });
+
     try {
       if (soundRef.current) {
         await soundRef.current.stopAsync();
@@ -79,8 +93,10 @@ export const VoicePicker: React.FC<Props> = ({
   };
 
   const handleVoiceSelect = async (selectedVoice: VoiceName) => {
-    setVoice(selectedVoice);
-    setAIName(selectedVoice);
+    setVoice(VoiceNameMapping[selectedVoice]);
+    if (setAIName) {
+      setAIName(selectedVoice);
+    }
     await playVoiceAudio(selectedVoice);
   };
 
@@ -101,14 +117,17 @@ export const VoicePicker: React.FC<Props> = ({
           style={[
             theme.button,
             styles.gridButton,
-            voice === v && theme.selectedButton,
+            voice === VoiceNameMapping[v] && theme.selectedButton,
           ]}
           onPress={() => handleVoiceSelect(v)}
           accessible={true}
           accessibilityLabel={`Select ${v}`}
         >
           <Text
-            style={[theme.buttonText, voice === v && theme.selectedButtonText]}
+            style={[
+              theme.buttonText,
+              voice === VoiceNameMapping[v] && theme.selectedButtonText,
+            ]}
           >
             {v}
           </Text>
@@ -129,12 +148,20 @@ export const VoiceSelector: React.FC<Props> = ({
       <View style={signupStyles.sectionContent}>
         <View />
         <View style={signupStyles.sectionMainContent}>
-          <Text style={theme.title}>Select a voice</Text>
+          <Text
+            style={[
+              theme.title,
+              {
+                marginBottom: 20,
+              },
+            ]}
+          >
+            Select a voice
+          </Text>
           <VoicePicker
             voice={voice}
             setVoice={setVoice}
             setAIName={setAIName}
-            onNext={onNext}
           />
         </View>
         <TouchableOpacity

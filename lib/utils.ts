@@ -1,8 +1,8 @@
 export const convertSQLToSettings = (data: any[] | null) => {
-  const settings = data?.at(0)
+  const settings = data?.at(0);
 
   if (!settings) {
-    return null
+    return null;
   }
 
   return {
@@ -11,6 +11,6 @@ export const convertSQLToSettings = (data: any[] | null) => {
     name: settings.name,
     gender: settings.gender,
     voice: settings.voice,
-    agentName: settings.aiName
-  }
-}
+    agentName: settings.agent_name,
+  };
+};
