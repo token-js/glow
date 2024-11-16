@@ -16,7 +16,6 @@ export const SignInWithApple: React.FC<Props> = ({ handleDidSignin }) => {
         cornerRadius={5}
         style={{ width: 300, height: 50 }}
         onPress={async () => {
-          console.log("attempting signin");
           try {
             const credential = await AppleAuthentication.signInAsync({
               requestedScopes: [
@@ -24,16 +23,12 @@ export const SignInWithApple: React.FC<Props> = ({ handleDidSignin }) => {
                 AppleAuthentication.AppleAuthenticationScope.EMAIL,
               ],
             });
-            console.log(credential);
-            console.log("trying to sign in with supabase");
             // Sign in via Supabase Auth.
             if (credential.identityToken) {
               const { error, data } = await supabase.auth.signInWithIdToken({
                 provider: "apple",
                 token: credential.identityToken,
               });
-              console.log("done");
-              console.log(JSON.stringify({ error, user: data.user }, null, 2));
               if (!error) {
                 await handleDidSignin(data.user, data.session);
               }

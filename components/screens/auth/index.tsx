@@ -1,3 +1,5 @@
+import { SignInWithApple } from "@/components/screens/auth/apple";
+import { VoiceKey } from "@/components/screens/signup/voice";
 import {
   segmentTrackLoadedAuthPage,
   segmentTrackSignedIn,
@@ -20,8 +22,29 @@ export const fetchUserSettings = async (
   userId: string
 ): Promise<Settings | null> => {
   const { data } = await supabase.from("settings").select().eq("id", userId);
-
   return convertSQLToSettings(data);
+};
+
+export const updateUserSettings = async (
+  name: string,
+  gender: string,
+  voice: string,
+  agentName: string,
+  userId: string
+) => {
+  const { error, data } = await supabase
+    .from("settings")
+    .update({
+      name: name,
+      gender: gender.toLowerCase() as any,
+      voice: voice as VoiceKey,
+      agent_name: agentName,
+    })
+    .eq("id", userId)
+    .select();
+
+  const settings = convertSQLToSettings(data);
+  return { settings, error };
 };
 
 export const sleep = (ms: number) =>
@@ -68,7 +91,7 @@ export default function Auth({ setSession, setShowSignupFlow }: Props) {
         </Text>
       </View>
       <View style={{ flex: 2, marginBottom: 10 }}>
-        {/* <SignInWithApple handleDidSignin={handleDidSignin} /> */}
+        <SignInWithApple handleDidSignin={handleDidSignin} />
         <SignInWithGoogle handleDidSignin={handleDidSignin} />
       </View>
     </View>

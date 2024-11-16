@@ -1,7 +1,6 @@
+import { updateUserSettings } from "@/components/screens/auth";
 import { segmentTrackFinishedSignup } from "@/lib/analytics";
 import { signupStyles } from "@/lib/style";
-import { supabase } from "@/lib/supabase";
-import { convertSQLToSettings } from "@/lib/utils";
 import { $Enums } from "@prisma/client";
 import { Session } from "@supabase/supabase-js";
 import React, { ReactElement, useEffect, useRef, useState } from "react";
@@ -9,7 +8,7 @@ import { Animated, Easing, View } from "react-native";
 import { AINameSection } from "./aiName";
 import { GenderSection } from "./gender";
 import { NameSection } from "./name";
-import { VoiceNameMapping, VoiceSelector } from "./voice";
+import { VoiceKey, VoiceSelector } from "./voice";
 
 export interface StepProps {
   onNext: () => void;
@@ -65,7 +64,7 @@ export const SignupFlow: React.FC<Props> = ({
 
   const [name, setName] = useState<string>("");
   const [gender, setGender] = useState<string>("");
-  const [voice, setVoice] = useState<string>("");
+  const [voice, setVoice] = useState<VoiceKey | null>(null);
   const [aiName, setAIName] = useState<string>("");
 
   const outgoingAnim = useRef<Animated.Value>(new Animated.Value(1)).current;
@@ -102,18 +101,19 @@ export const SignupFlow: React.FC<Props> = ({
   };
 
   const onFinish = async (): Promise<void> => {
-    const { error, data } = await supabase
-      .from("settings")
-      .update({
-        name: name,
-        gender: gender.toLowerCase() as any,
-        voice: VoiceNameMapping[voice as keyof typeof VoiceNameMapping] as any,
-        agent_name: aiName,
-      })
-      .eq("id", session.user.id)
-      .select();
+    if (voice === null) {
+      throw Error(
+        "Voice is not set when updating settings, this should never happen"
+      );
+    }
 
-    const settings = convertSQLToSettings(data);
+    const { settings, error } = await updateUserSettings(
+      name,
+      gender,
+      voice,
+      aiName,
+      session.user.id
+    );
     setSettings(settings);
 
     if (error === null) {

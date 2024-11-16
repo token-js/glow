@@ -16,7 +16,16 @@ export const NameSection: React.FC<Props> = ({ setName, name, onNext }) => {
     <View style={signupStyles.sectionContent}>
       <View />
       <View style={signupStyles.sectionMainContent}>
-        <Text style={theme.title}>What's your name?</Text>
+        <Text
+          style={[
+            theme.title,
+            {
+              marginBottom: 20,
+            },
+          ]}
+        >
+          What's your name?
+        </Text>
         <TextInput
           style={[
             theme.input,
