@@ -78,54 +78,20 @@ def message_to_fixed_string_content(message: dict) -> dict:
         }
 
 
-async def update_chat(
-    messages: List[dict],
-    chat_id: str,
-    agent_response: str,
-):
-    prisma = Prisma()
-    await prisma.connect()
-
-    async with prisma.tx():
-        # Get the last user message (pop if the last message is a system message)
-        new_user_message = messages.pop()
-        while new_user_message["role"] == "system":
-            new_user_message = messages.pop()
-
-        content = message_to_fixed_string_content(new_user_message)["content"]
-
-        # Create new user chat message
-        await prisma.chatmessages.create(
-            data=types.ChatMessagesCreateInput(
-                chatId=chat_id,
-                role=enums.OpenAIRole.user,
-                content=content,
-            )
-        )
-
-        # Create new agent chat message
-        await prisma.chatmessages.create(
-            data=types.ChatMessagesCreateInput(
-                chatId=chat_id,
-                role=enums.OpenAIRole.assistant,
-                content=agent_response,
-            )
-        )
-
-        await prisma.chats.update(
-            where={"id": chat_id},
-            data=types.ChatsUpdateInput(lastMessageTime=datetime.now()),
-        )
-
-    await prisma.disconnect()
-
-
 async def call_update_chat(
     messages: List[dict],
     agent_response: str,
     user_message_timestamp: datetime,
     agent_message_timestamp: datetime,
     chat_id: str,
+    ai_name: str,
+    user_name: str,
+    user_gender: str,
+    timezone: str,
+    system_prompt: str,
+    message_ids: List[str],
+    memory_ids: List[str],
+    preference_ids: List[str],
 ):
     new_user_message = messages.pop()
     while new_user_message["role"] == "system":
@@ -138,6 +104,14 @@ async def call_update_chat(
         "user_message_timestamp": user_message_timestamp.timestamp(),
         "agent_message_timestamp": agent_message_timestamp.timestamp(),
         "chat_id": chat_id,
+        "ai_name": ai_name,
+        "user_name": user_name,
+        "user_gender": user_gender,
+        "timezone": timezone,
+        "system_prompt": system_prompt,
+        "message_ids": message_ids,
+        "memory_ids": memory_ids,
+        "preference_ids": preference_ids,
     }
     headers = {
         "Content-Type": "application/json",
@@ -150,6 +124,7 @@ async def call_update_chat(
             json=data,
             headers=headers,
         )
+        logger.error(f'Error updating chat: {response.text}')
         response.raise_for_status()
 
 
@@ -162,6 +137,7 @@ def stream_and_update_chat(
     ai_first_name: str,
     user_first_name: str,
     user_gender: str,
+    ai_message_id: str,
 ):
     user_message_timestamp = datetime.now()
     client = OpenAI(
@@ -177,10 +153,13 @@ def stream_and_update_chat(
     # https://github.com/vercel/ai/blob/main/examples/next-fastapi/api/index.py#L72
     stream = None
     agent_response = ""
-    stream = asyncio.run(
+    messages_without_id = [
+        {k: v for k, v in obj.items() if k != "id"} for obj in messages
+    ]
+    stream, memory_ids, preference_ids, system_prompt = asyncio.run(
         generate_response(
             llm=client,
-            messages=messages,
+            messages=messages_without_id,
             user_id=user_id,
             timezone=timezone,
             ai_first_name=ai_first_name,
@@ -207,6 +186,8 @@ def stream_and_update_chat(
     #    processing logic to also finish quickly. (I.e. all of the chunks are yielded).
     # 2. While the voice is speaking, synchronous tasks such as analytics calls execute, causing the
     #    voice response to halt until the synchronous task ends.
+    message_ids = [message["id"] for message in messages]
+    message_ids.append(ai_message_id)
     thread = threading.Thread(
         target=lambda: asyncio.run(
             final_processing_coroutine(
@@ -215,7 +196,15 @@ def stream_and_update_chat(
                 chat_id=chat_id,
                 user_id=user_id,
                 chat_type=chat_type,
-                user_message_timestamp=user_message_timestamp
+                user_message_timestamp=user_message_timestamp,
+                ai_name=ai_first_name,
+                user_name=user_first_name,
+                user_gender=user_gender,
+                timezone=timezone,
+                system_prompt=system_prompt,
+                message_ids=message_ids,
+                memory_ids=memory_ids,
+                preference_ids=preference_ids,
             )
         ),
         daemon=True,
@@ -229,7 +218,15 @@ async def final_processing_coroutine(
     chat_id: str,
     user_id: str,
     chat_type: str,
-    user_message_timestamp: datetime
+    user_message_timestamp: datetime,
+    ai_name: str,
+    user_name: str,
+    user_gender: str,
+    timezone: str,
+    system_prompt: str,
+    message_ids: List[str],
+    memory_ids: List[str],
+    preference_ids: List[str],
 ) -> None:
     agent_message_timestamp = datetime.now()
 
@@ -239,6 +236,14 @@ async def final_processing_coroutine(
         chat_id=chat_id,
         user_message_timestamp=user_message_timestamp,
         agent_message_timestamp=agent_message_timestamp,
+        ai_name=ai_name,
+        user_name=user_name,
+        user_gender=user_gender,
+        timezone=timezone,
+        system_prompt=system_prompt,
+        message_ids=message_ids,
+        memory_ids=memory_ids,
+        preference_ids=preference_ids,
     )
 
     await add_memories(
@@ -299,7 +304,7 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
         ),
         prisma.settings.find_unique(
             where={"id": user_id},
-        )
+        ),
     )
 
     if chat.userId != user_id:
@@ -347,6 +352,14 @@ class UpdateChatRequest(BaseModel):
     new_agent_message: str
     agent_message_timestamp: float
     chat_id: str
+    ai_name: str
+    user_name: str
+    user_gender: str
+    timezone: str
+    system_prompt: str
+    message_ids: List[str]
+    memory_ids: List[str]
+    preference_ids: List[str]
 
 
 @router.post("/api/updateChat")
@@ -363,6 +376,7 @@ async def handle_update_chat(request: UpdateChatRequest):
         # Create new user chat message
         await prisma.chatmessages.create(
             data=types.ChatMessagesCreateInput(
+                id=request.new_user_message_id,
                 chatId=chat_id,
                 role=enums.OpenAIRole.user,
                 content=new_user_message,
@@ -371,12 +385,32 @@ async def handle_update_chat(request: UpdateChatRequest):
         )
 
         # Create new agent chat message
-        await prisma.chatmessages.create(
+        assistant_message = await prisma.chatmessages.create(
             data=types.ChatMessagesCreateInput(
+                id=request.new_agent_message_id,
                 chatId=chat_id,
                 role=enums.OpenAIRole.assistant,
                 content=agent_response,
                 created=datetime.fromtimestamp(request.agent_message_timestamp),
+            )
+        )
+
+        # TODO(later): manually check that this worked.
+
+        # Create new ChatInteraction
+        messages_ids = [{"id": message_id} for message_id in request.message_ids]
+        await prisma.chatinteractions.create(
+            data=types.ChatInteractionsCreateInput(
+                aiName=request.ai_name,
+                userName=request.user_name,
+                userGender=request.user_gender,
+                timezone=request.timezone,
+                systemPrompt=request.system_prompt,
+                chat={"connect": {"id": chat_id}},
+                messages={"connect": messages_ids},
+                agentResponse={"connect": {"id": assistant_message.id}},
+                memoryIds=request.memory_ids,
+                preferenceIds=request.preference_ids,
             )
         )
 

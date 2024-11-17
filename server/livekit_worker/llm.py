@@ -3,10 +3,11 @@ from __future__ import annotations
 import os
 import asyncio
 import logging
+import uuid
 
 from prisma import Prisma
 from dataclasses import dataclass
-from typing import Any, MutableSet
+from typing import Any, Dict, List, MutableSet
 from livekit.agents import llm
 from openai.types.chat import ChatCompletionChunk
 from openai.types.chat import ChatCompletionChunk
@@ -18,6 +19,7 @@ from typing import Any, Coroutine
 from dataclasses import dataclass
 
 logger = logging.getLogger("voice-agent")
+
 
 class AsyncStream:
     def __init__(self, async_gen):
@@ -37,15 +39,36 @@ def get_next_item(it):
         return None
 
 
-def convert_stream_to_coroutine(messages, chat_id, user_id, timezone: str, ai_first_name: str, user_first_name: str, user_gender: str) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
+def convert_stream_to_coroutine(
+    messages,
+    chat_id,
+    user_id,
+    timezone: str,
+    ai_first_name: str,
+    user_first_name: str,
+    user_gender: str,
+    ai_message_id: str
+) -> Coroutine[Any, Any, "AsyncStream[ChatCompletionChunk]"]:
     async def wrapper():
-        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id, chat_type='voice', timezone=timezone, ai_first_name=ai_first_name, user_first_name=user_first_name, user_gender=user_gender)
+        sync_gen = stream_and_update_chat(
+            messages=messages,
+            chat_id=chat_id,
+            user_id=user_id,
+            chat_type="voice",
+            timezone=timezone,
+            ai_first_name=ai_first_name,
+            user_first_name=user_first_name,
+            user_gender=user_gender,
+            ai_message_id=ai_message_id,
+        )
         it = iter(sync_gen)
 
         async def async_gen():
             while True:
                 # Use a helper function to handle StopIteration
-                s = await asyncio.get_event_loop().run_in_executor(None, get_next_item, it)
+                s = await asyncio.get_event_loop().run_in_executor(
+                    None, get_next_item, it
+                )
                 if s is None:
                     break
                 yield s
@@ -71,6 +94,7 @@ class LLM(llm.LLM):
         self,
         *,
         api_key: str | None = None,
+        messages: List[Dict[str, Any]],
         user_id: str,
         chat_id: str,
         user_name: str,
@@ -83,6 +107,9 @@ class LLM(llm.LLM):
         if api_key is None:
             raise ValueError("OpenAI API key is required")
 
+        self.messages = messages
+        self.user_message_id = str(uuid.uuid4())
+        self.ai_message_id = str(uuid.uuid4())
         self._opts = Options(
             user=user_id,
             chat_id=chat_id,
@@ -90,7 +117,7 @@ class LLM(llm.LLM):
             agent_name=agent_name,
             user_name=user_name,
             user_gender=user_gender,
-            timezone=timezone
+            timezone=timezone,
         )
         self._running_fncs: MutableSet[asyncio.Task[Any]] = set()
 
@@ -106,9 +133,35 @@ class LLM(llm.LLM):
         logger.info("chat function")
 
         if fnc_ctx and len(fnc_ctx.ai_functions) > 0:
-          raise ValueError('Functions are not supported')
+            raise ValueError("Functions are not supported")
 
-        messages = _build_oai_context(chat_ctx, id(self))
-        stream = convert_stream_to_coroutine(messages=messages, chat_id=self._opts.chat_id, user_id=self._opts.user, timezone=self._opts.timezone, ai_first_name=self._opts.agent_name, user_first_name=self._opts.user_name, user_gender=self._opts.user_gender)
+        # TODO(later): test the case where chat_messages is 0.
+
+        # TODO(later): case: Say the agent starts talking, then the user interrupts. Is
+        # `final_processing_coroutine` always executed? Never executed? Sometimes executed?
+
+        prisma = Prisma()
+
+        logger.info(f"TODO AI Message ID: {self.ai_message_id}")
+        logger.info(f"TODO User Message ID: {self.user_message_id}")
+
+        self.ai_message_id = str(uuid.uuid4())
+        self.user_message_id = str(uuid.uuid4())
+
+        messages = [
+            {"role": msg["content"], "content": msg["content"], "id": msg["id"]}
+            for msg in self.messages
+        ]
+
+        stream = convert_stream_to_coroutine(
+            messages=messages,
+            chat_id=self._opts.chat_id,
+            user_id=self._opts.user,
+            timezone=self._opts.timezone,
+            ai_first_name=self._opts.agent_name,
+            user_first_name=self._opts.user_name,
+            user_gender=self._opts.user_gender,
+            ai_message_id=self.ai_message_id
+        )
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)

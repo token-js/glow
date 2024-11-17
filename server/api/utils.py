@@ -491,3 +491,17 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
                 return f"{years_difference} years ago"
 
     return ""
+
+# TODO(end): undo package.json scripts
+
+# TODO(end): undo `# self._send_kill_signal()` in lib
+
+# TODO(docs): we don't use the `id` field on Livekit's class because
+
+# TODO(later): after implementing voice, implement text.
+
+# TODO(later): Can users send two text messages in a row? This'd mess up our logic.
+
+# TODO(later): should we include any more fields in prisma, like the input(s) to `time_ago`?
+
+# TODO(later): change file name of TODO.py

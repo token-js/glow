@@ -26,6 +26,8 @@ from server.api.utils import (
 )
 from mem0 import AsyncMemoryClient
 
+from server.scripts.debug_helpers import stream_given_text
+
 
 async def generate_response(
     llm: AsyncOpenAI,
@@ -55,12 +57,14 @@ async def generate_response(
         for memory in relevant_memories_with_preferences
         if "conversation_preferences" not in memory["categories"]
     ]
+    memory_ids = [memory["id"] for memory in memories]
 
     preferences = [
         memory
         for memory in all_memories
         if "conversation_preferences" in memory["categories"]
     ]
+    preference_ids = [preference["id"] for preference in preferences]
 
     system_prompt = make_system_prompt(
         ai_first_name=ai_first_name,
@@ -83,6 +87,10 @@ async def generate_response(
     # Get the last 2048 elements of the array because OpenAI throws an error if the array is larger.
     truncated_messages = truncated_messages[-2048:]
 
-    return llm.chat.completions.create(
-        messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True
-    )
+    stream = stream_given_text(text="Hey", iterations=1)
+    # TODO(end): undo
+    # stream = llm.chat.completions.create(
+    #     messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True
+    # )
+
+    return stream, memory_ids, preference_ids, system_prompt

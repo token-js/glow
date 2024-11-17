@@ -1,6 +1,8 @@
 import asyncio
 import logging
 import os
+from typing import AsyncIterable
+import uuid
 import asyncpg
 import cuid
 import sentry_sdk
@@ -13,7 +15,6 @@ from livekit.agents import (
     cli,
     llm,
 )
-from livekit.agents.pipeline import VoicePipelineAgent
 from livekit.plugins import openai, deepgram, silero, elevenlabs
 from pydub import AudioSegment
 from livekit import rtc
@@ -25,6 +26,7 @@ from datetime import datetime
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from .voices import VoiceSettingMapping
+from .TODO import VoicePipelineAgent
 
 sentry_sdk.init(
     dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
@@ -101,7 +103,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
         )
 
         if len(messages) == 0:
-            message_id = cuid.cuid()
+            message_id = str(uuid.uuid4())
             first_chat_message = fetch_initial_chat_message(agent_name=agent_name)
             message_role = "assistant"
             created = datetime.now()
@@ -153,28 +155,30 @@ async def entrypoint(ctx: JobContext):
     user_id = participant.identity
 
     # Fetch the detailed voice settings
-    voice_settings = VoiceSettingMapping[voice]
+    voice_settings = VoiceSettingMapping["voice_1"]  # TODO(end): undo
 
     # Fetch chat data asynchronously
     chat, send_first_chat_message, first_chat_message = await get_chat(
         user_id=user_id, agent_name=agent_name, user_name=name
     )
 
-    chat_messages = [
-        llm.ChatMessage(
-            role=message["role"], content=message["content"], id=message["id"]
-        )
-        for message in chat["messages"]
-    ]
     chat_id = chat["id"]
 
-    initial_ctx = llm.ChatContext(messages=chat_messages)
+    initial_ctx = llm.ChatContext(
+        messages=[
+            llm.ChatMessage(
+                role=message["role"], content=message["content"], id=message["id"]
+            )
+            for message in chat["messages"]
+        ]
+    )
 
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
         llm=LLM(
             user_id=participant.identity,
+            messages=chat["messages"],
             chat_id=chat_id,
             user_name=name,
             user_gender=user_gender,
@@ -197,7 +201,7 @@ async def entrypoint(ctx: JobContext):
             ),
             api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
         ),
-        chat_ctx=initial_ctx,
+        chat_ctx=initial_ctx
     )
 
     # Initialize the filler sound player

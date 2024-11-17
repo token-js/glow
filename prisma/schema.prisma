@@ -41,28 +41,61 @@ model Settings {
 }
 
 model Chats {
-  id               String               @id @default(uuid())
-  created          DateTime             @default(now()) @map("created")
-  modified         DateTime             @updatedAt @map("modified")
-  lastMessageTime  DateTime?            @map("last_message_time")
-  userId           String               @db.Uuid @map("user_id")
-  user             SupabaseUserProfiles @relation(fields: [userId], references: [id])
-  messages         ChatMessages[]
+  id              String               @id @default(uuid())
+  created         DateTime             @default(now()) @map("created")
+  modified        DateTime             @updatedAt @map("modified")
+  lastMessageTime DateTime?            @map("last_message_time")
+  userId          String               @db.Uuid @map("user_id")
+  user            SupabaseUserProfiles @relation(fields: [userId], references: [id])
+  messages        ChatMessages[]
+  interactions    ChatInteractions[]   // Removed @relation name
 
   @@unique([id, userId])
   @@map("chats")
 }
 
 model ChatMessages {
-  id       String     @id @default(uuid())
-  created  DateTime   @default(now()) @map("created")
-  modified DateTime   @updatedAt @map("modified")
-  chatId   String     @map("chat_id")
-  content  String
-  role     OpenAIRole
-  chat     Chats      @relation(fields: [chatId], references: [id])
+  id                           String          @id
+  created                      DateTime        @default(now()) @map("created")
+  modified                     DateTime        @updatedAt @map("modified")
+  chatId                       String          @map("chat_id")
+  content                      String
+  role                         OpenAIRole
+  chat                         Chats           @relation(fields: [chatId], references: [id])
+
+  // Relations with ChatInteractions
+  chatInteractionsMessages     ChatInteractions[]
+  chatInteractionsAssistantResponse ChatInteractions? @relation("ChatInteractionsAssistantResponse")
 
   @@map("chat_messages")
+}
+
+// TODO(later): when you're fetching the memories from Mem0, make sure that you get the memory
+// string that corresponds to the time that the chat interaction was created, since memories in Mem0
+// are mutable. You may need to use `mem0.history`.
+
+model ChatInteractions {
+  id              String         @id @default(uuid())
+  created         DateTime       @default(now())
+  modified        DateTime       @updatedAt
+  aiName          String         @map("ai_name")
+  userName        String         @map("user_name")
+  userGender      Gender         @map("user_gender")
+  timezone        String
+  systemPrompt    String         @map("system_prompt")
+  memoryIds       String[]       @map("memory_ids")
+  preferenceIds   String[]       @map("preference_ids")
+
+  // Relation to Chats
+  chatId          String         @map("chat_id")
+  chat            Chats          @relation(fields: [chatId], references: [id])
+
+  // Relations to ChatMessages
+  messages        ChatMessages[]
+  assistantResponseId String         @unique @map("assistant_response_id")
+  assistantResponse   ChatMessages   @relation("ChatInteractionsAssistantResponse", fields: [assistantResponseId], references: [id])
+
+  @@map("chat_interactions")
 }
 
 enum OpenAIRole {
