@@ -29,7 +29,7 @@
       "env": {
         "EXPO_PUBLIC_SUPABASE_URL": "https://vezjbcfybqzbgktxchtn.supabase.co",
         "EXPO_PUBLIC_SUPABASE_ANON_KEY": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZlempiY2Z5YnF6YmdrdHhjaHRuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzEzNzUxNzMsImV4cCI6MjA0Njk1MTE3M30.g0bmzMu5AZzqzcoK4afgYWP4dGL417q-_b1n149TvcQ",
-        "EXPO_PUBLIC_GOOGLE_AUTH_CLIENT_ID": "118244602240-f2me9tmhb08qg79mc72kkt2a6haijro2.apps.googleusercontent.com",
+        "EXPO_PUBLIC_GOOGLE_AUTH_CLIENT_ID": "118244602240-hj3ukvu2rn64cvnop7of44b0psuackki.apps.googleusercontent.com",
         "EXPO_PUBLIC_SEGMENT_WRITE_KEY": "hx64EI7X7l6yxECaWYGvbQkS9zGE1IKJ",
         "EXPO_PUBLIC_LIVEKIT_URL": "wss://glow-eooqleqy.livekit.cloud",
         "EXPO_PUBLIC_API_URL": "glow-api-prod.fly.dev",

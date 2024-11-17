@@ -1,4 +1,4 @@
-import { ChatInterfaceHandle } from "@/chat-interfaces/text"; // Adjust the path as necessary
+import { ChatInterfaceHandle } from "@/components/chat-interfaces/text";
 import { Ionicons } from "@expo/vector-icons";
 import React, { useRef, useState } from "react";
 import {
