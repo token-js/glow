@@ -164,21 +164,19 @@ async def entrypoint(ctx: JobContext):
 
     chat_id = chat["id"]
 
-    initial_ctx = llm.ChatContext(
-        messages=[
-            llm.ChatMessage(
-                role=message["role"], content=message["content"], id=message["id"]
-            )
-            for message in chat["messages"]
-        ]
-    )
+    chat_messages = [
+        llm.ChatMessage(
+            role=message["role"], content=message["content"], id=message["id"]
+        )
+        for message in chat["messages"]
+    ]
+    initial_ctx = llm.ChatContext(messages=chat_messages)
 
     assistant = VoicePipelineAgent(
         vad=ctx.proc.userdata["vad"],
         stt=deepgram.STT(),
         llm=LLM(
             user_id=participant.identity,
-            messages=chat["messages"],
             chat_id=chat_id,
             user_name=name,
             user_gender=user_gender,
@@ -201,7 +199,7 @@ async def entrypoint(ctx: JobContext):
             ),
             api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
         ),
-        chat_ctx=initial_ctx
+        chat_ctx=initial_ctx,
     )
 
     # Initialize the filler sound player

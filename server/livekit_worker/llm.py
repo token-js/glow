@@ -18,6 +18,8 @@ from server.api.routes.chat import stream_and_update_chat
 from typing import Any, Coroutine
 from dataclasses import dataclass
 
+from server.livekit_worker.TODO import GlowState
+
 logger = logging.getLogger("voice-agent")
 
 
@@ -47,7 +49,7 @@ def convert_stream_to_coroutine(
     ai_first_name: str,
     user_first_name: str,
     user_gender: str,
-    ai_message_id: str
+    ai_message_id: str,
 ) -> Coroutine[Any, Any, "AsyncStream[ChatCompletionChunk]"]:
     async def wrapper():
         sync_gen = stream_and_update_chat(
@@ -94,7 +96,6 @@ class LLM(llm.LLM):
         self,
         *,
         api_key: str | None = None,
-        messages: List[Dict[str, Any]],
         user_id: str,
         chat_id: str,
         user_name: str,
@@ -107,9 +108,6 @@ class LLM(llm.LLM):
         if api_key is None:
             raise ValueError("OpenAI API key is required")
 
-        self.messages = messages
-        self.user_message_id = str(uuid.uuid4())
-        self.ai_message_id = str(uuid.uuid4())
         self._opts = Options(
             user=user_id,
             chat_id=chat_id,
@@ -129,29 +127,13 @@ class LLM(llm.LLM):
         temperature: float | None = None,
         n: int | None = 1,
         parallel_tool_calls: bool | None = None,
+        messages: List[Dict[str, Any]],
+        ai_message_id: str,
     ) -> "LLMStream":
         logger.info("chat function")
 
         if fnc_ctx and len(fnc_ctx.ai_functions) > 0:
             raise ValueError("Functions are not supported")
-
-        # TODO(later): test the case where chat_messages is 0.
-
-        # TODO(later): case: Say the agent starts talking, then the user interrupts. Is
-        # `final_processing_coroutine` always executed? Never executed? Sometimes executed?
-
-        prisma = Prisma()
-
-        logger.info(f"TODO AI Message ID: {self.ai_message_id}")
-        logger.info(f"TODO User Message ID: {self.user_message_id}")
-
-        self.ai_message_id = str(uuid.uuid4())
-        self.user_message_id = str(uuid.uuid4())
-
-        messages = [
-            {"role": msg["content"], "content": msg["content"], "id": msg["id"]}
-            for msg in self.messages
-        ]
 
         stream = convert_stream_to_coroutine(
             messages=messages,
@@ -161,7 +143,7 @@ class LLM(llm.LLM):
             ai_first_name=self._opts.agent_name,
             user_first_name=self._opts.user_name,
             user_gender=self._opts.user_gender,
-            ai_message_id=self.ai_message_id
+            ai_message_id=ai_message_id
         )
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)

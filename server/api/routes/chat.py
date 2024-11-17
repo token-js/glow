@@ -89,7 +89,6 @@ async def call_update_chat(
     user_gender: str,
     timezone: str,
     system_prompt: str,
-    message_ids: List[str],
     memory_ids: List[str],
     preference_ids: List[str],
 ):
@@ -98,6 +97,7 @@ async def call_update_chat(
         new_user_message = messages.pop()
     new_user_message = message_to_fixed_string_content(new_user_message)["content"]
 
+    message_ids = [message["id"] for message in messages]
     data = {
         "new_user_message": new_user_message,
         "new_agent_message": agent_response,
@@ -124,8 +124,10 @@ async def call_update_chat(
             json=data,
             headers=headers,
         )
-        logger.error(f'Error updating chat: {response.text}')
-        response.raise_for_status()
+        if response.is_error:
+            logger.error(f'Error updating chat: {response.text}')
+            # TODO(later): should we raise an error here?
+            response.raise_for_status()
 
 
 def stream_and_update_chat(
@@ -186,8 +188,6 @@ def stream_and_update_chat(
     #    processing logic to also finish quickly. (I.e. all of the chunks are yielded).
     # 2. While the voice is speaking, synchronous tasks such as analytics calls execute, causing the
     #    voice response to halt until the synchronous task ends.
-    message_ids = [message["id"] for message in messages]
-    message_ids.append(ai_message_id)
     thread = threading.Thread(
         target=lambda: asyncio.run(
             final_processing_coroutine(
@@ -202,7 +202,6 @@ def stream_and_update_chat(
                 user_gender=user_gender,
                 timezone=timezone,
                 system_prompt=system_prompt,
-                message_ids=message_ids,
                 memory_ids=memory_ids,
                 preference_ids=preference_ids,
             )
@@ -224,7 +223,6 @@ async def final_processing_coroutine(
     user_gender: str,
     timezone: str,
     system_prompt: str,
-    message_ids: List[str],
     memory_ids: List[str],
     preference_ids: List[str],
 ) -> None:
@@ -241,13 +239,16 @@ async def final_processing_coroutine(
         user_gender=user_gender,
         timezone=timezone,
         system_prompt=system_prompt,
-        message_ids=message_ids,
         memory_ids=memory_ids,
         preference_ids=preference_ids,
     )
 
+    messages_without_id = [
+        {k: v for k, v in obj.items() if k != "id"} for obj in messages
+    ]
+    messages_without_id.append({"role": "assistant", "content": agent_response})
     await add_memories(
-        messages=messages + [{"role": "assistant", "content": agent_response}],
+        messages=messages_without_id,
         user_id=user_id,
         model=FINE_TUNED_MODEL,
     )
@@ -372,11 +373,13 @@ async def handle_update_chat(request: UpdateChatRequest):
         new_user_message = request.new_user_message
         agent_response = request.new_agent_message
         chat_id = request.chat_id
+        user_message_id = request.message_ids[-2]
+        ai_message_id = request.message_ids[-1]
 
         # Create new user chat message
         await prisma.chatmessages.create(
             data=types.ChatMessagesCreateInput(
-                id=request.new_user_message_id,
+                id=user_message_id,
                 chatId=chat_id,
                 role=enums.OpenAIRole.user,
                 content=new_user_message,
@@ -387,15 +390,13 @@ async def handle_update_chat(request: UpdateChatRequest):
         # Create new agent chat message
         assistant_message = await prisma.chatmessages.create(
             data=types.ChatMessagesCreateInput(
-                id=request.new_agent_message_id,
+                id=ai_message_id,
                 chatId=chat_id,
                 role=enums.OpenAIRole.assistant,
                 content=agent_response,
                 created=datetime.fromtimestamp(request.agent_message_timestamp),
             )
         )
-
-        # TODO(later): manually check that this worked.
 
         # Create new ChatInteraction
         messages_ids = [{"id": message_id} for message_id in request.message_ids]
@@ -408,7 +409,7 @@ async def handle_update_chat(request: UpdateChatRequest):
                 systemPrompt=request.system_prompt,
                 chat={"connect": {"id": chat_id}},
                 messages={"connect": messages_ids},
-                agentResponse={"connect": {"id": assistant_message.id}},
+                assistantResponse={"connect": {"id": assistant_message.id}},
                 memoryIds=request.memory_ids,
                 preferenceIds=request.preference_ids,
             )
