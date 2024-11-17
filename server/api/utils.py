@@ -492,11 +492,6 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
 
     return ""
 
-# TODO(end): case: Say the agent starts talking, then the user interrupts. Is
-# `final_processing_coroutine` always executed? Never executed? Sometimes executed? My suspicion is
-# that it'll sometimes get executed, which could cause an error because `prisma.chatmessages.create`
-# will be called for a single ID more than once. (I think that operation would cause an error).
-
 # TODO(end): undo package.json scripts
 
 # TODO(end): undo `# self._send_kill_signal()` in lib
@@ -519,4 +514,9 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
 # Before: currently testing that this works. The `messages` field in ChatInteractions contain the
 # message ID for the assistant's response, which it shouldn't. I think I fixed this issue but
 # haven't checked. After that, we should test the case where the user hasn't sent a message before
-# at all, and also the interruptions case (see "TODO(end): case" above).
+# at all, and also the interruptions case:
+# Say the agent starts talking, then the user interrupts.
+# Is `final_processing_coroutine` always executed? Never executed? Sometimes executed? My suspicion
+# is that it'll sometimes get executed, which could cause an error because
+# `prisma.chatmessages.create` will be called for a single ID more than once. (I think that
+# operation would cause an error).
