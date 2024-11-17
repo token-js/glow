@@ -511,7 +511,12 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
 
 # TODO(later): remove `store=True` from OpenAI chat completions API call.
 
-# TODO: left off: currently testing that this works. The `messages` field in ChatInteractions
-# contain the message ID for the assistant's response, which it shouldn't. I think I fixed this
-# issue but haven't checked. After that, we should test the case where the user hasn't sent a
-# message before at all, and also the interruptions case (see "TODO(end): case" above).
+# TODO: left off: Given that we aren't comfortable modifying VoicePipelineAgent directly, I think
+# the solution that's least error-prone is to store `numMessagesBeforeAIMessage` in the Prisma model
+# instead of an array of message IDs. This may not be a perfectly foolproof solution forever, but
+# it's not a problem in our current system, and I don't think it's much of a footgun.
+#
+# Before: currently testing that this works. The `messages` field in ChatInteractions contain the
+# message ID for the assistant's response, which it shouldn't. I think I fixed this issue but
+# haven't checked. After that, we should test the case where the user hasn't sent a message before
+# at all, and also the interruptions case (see "TODO(end): case" above).
