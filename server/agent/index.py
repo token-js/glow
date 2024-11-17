@@ -84,5 +84,5 @@ async def generate_response(
     truncated_messages = truncated_messages[-2048:]
 
     return llm.chat.completions.create(
-        messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True
+        messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True, store=True
     )
