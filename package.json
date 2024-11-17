@@ -21,7 +21,9 @@
     "run:livekit:container": "docker run -p 8000:8000 --env-file ./.env 'glow-fast-api' python -m server.livekit_worker.main dev",
     "run:api:container": "docker run -p 8000:8000 --env-file ./.env 'glow-fast-api' python main.py start",
     "deploy:secrets:staging": "cat .env.staging | fly secrets import --config ./ops/fly/fly.staging.toml",
-    "deploy:secrets:prod": "cat .env.prod | fly secrets import --config ./ops/fly/fly.prod.toml"
+    "deploy:secrets:prod": "cat .env.prod | fly secrets import --config ./ops/fly/fly.prod.toml",
+    "build:ios": "eas build --platform ios",
+    "submit:ios": "eas submit -p ios"
   },
   "dependencies": {
     "@config-plugins/react-native-webrtc": "^9.0.0",
