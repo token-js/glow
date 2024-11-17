@@ -53,10 +53,8 @@ def prewarm(proc: JobProcess):
 
 
 def fetch_initial_chat_message(agent_name: str):
-    return f"""
-Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun.
-Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?
-"""
+    return f"""Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun.
+Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?"""
 
 
 async def get_chat(user_id: str, user_name: str, agent_name: str):
@@ -278,7 +276,9 @@ class FillerSoundPlayer:
         async with self.lock:
             if self.publication is not None:
                 try:
-                    await self.room.local_participant.unpublish_track(self.publication.sid)
+                    await self.room.local_participant.unpublish_track(
+                        self.publication.sid
+                    )
                     logger.info("Filler sound track unpublished.")
                 except Exception as e:
                     logger.error(f"Error unpublishing track: {e}")
@@ -306,7 +306,7 @@ class FillerSoundPlayer:
             self.frames = []
             position = 0
             while position + frame_size <= len(audio_data):
-                frame_data = audio_data[position: position + frame_size]
+                frame_data = audio_data[position : position + frame_size]
                 position += frame_size
                 samples_per_channel = len(frame_data) // (num_channels * sample_width)
                 frame = rtc.AudioFrame(
@@ -341,6 +341,7 @@ class FillerSoundPlayer:
             else:
                 # Sleep briefly to prevent CPU overutilization
                 await asyncio.sleep(0.01)
+
 
 if __name__ == "__main__":
     cli.run_app(

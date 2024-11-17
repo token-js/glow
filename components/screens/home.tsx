@@ -87,7 +87,7 @@ export const HomeScreen: React.FC = () => {
       duration: duration || 300,
       easing: easingFunction,
       useNativeDriver: false,
-    });
+    }).start();
   };
 
   const handleKeyboardHide = (event: any) => {
