@@ -509,6 +509,8 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
 
 # TODO(later): change file name of TODO.py
 
+# TODO(later): remove `store=True` from OpenAI chat completions API call.
+
 # TODO: left off: currently testing that this works. The `messages` field in ChatInteractions
 # contain the message ID for the assistant's response, which it shouldn't. I think I fixed this
 # issue but haven't checked. After that, we should test the case where the user hasn't sent a
