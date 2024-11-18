@@ -8,7 +8,7 @@
     "start:livekit": "python -m server.livekit_worker.main dev",
     "start:api": "uvicorn server.api.main:app --reload --port 8000 --env-file .env",
     "start:ngrok": "bash -c 'source .env && ngrok http --domain=$EXPO_PUBLIC_API_URL 8000'",
-    "start:server": "source .venv/bin/activate && concurrently \"npm run start:livekit\" \"npm run start:api\" \"npm run start:ngrok\"",
+    "start:server": "source .venv/bin/activate && concurrently \"npm run start:api\" \"npm run start:ngrok\"",
     "supabase:generate": "supabase gen types typescript --project-id fgaselroozoxiyumasqg > lib/types/supabase.ts",
     "prisma:generate": "prisma generate",
     "prisma:reset": "npx prisma migrate reset",

@@ -492,6 +492,8 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
 
     return ""
 
+# TODO(end): undo package.json scripts
+
 # TODO(later):
 # Examples:
 

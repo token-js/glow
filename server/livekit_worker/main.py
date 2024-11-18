@@ -25,6 +25,7 @@ from datetime import datetime
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from .voices import VoiceSettingMapping
+from .vad import VAD
 
 sentry_sdk.init(
     dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
@@ -49,7 +50,7 @@ logger = logging.getLogger("voice-agent")
 
 
 def prewarm(proc: JobProcess):
-    proc.userdata["vad"] = silero.VAD.load()
+    proc.userdata["vad"] = VAD.load()
 
 
 def fetch_initial_chat_message(agent_name: str):

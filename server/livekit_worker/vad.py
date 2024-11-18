@@ -2,7 +2,7 @@ import logging
 import asyncio
 from dataclasses import dataclass
 import time
-from typing import Literal
+from typing import Literal, Union
 import numpy as np
 from livekit import agents, rtc
 from livekit.agents import utils, vad
@@ -23,7 +23,7 @@ class _VADOptions:
     activation_threshold: float
     sample_rate: int
 
-class ExtendedVAD(silero.VAD):
+class VAD(silero.VAD):
     """
     Extended Silero Voice Activity Detection (VAD) class with enhanced streaming logic.
     """
@@ -39,8 +39,8 @@ class ExtendedVAD(silero.VAD):
         activation_threshold: float = 0.5,
         sample_rate: Literal[8000, 16000] = 16000,
         force_cpu: bool = True,
-        padding_duration: float | None = None,
-    ) -> "ExtendedVAD":
+        padding_duration: Union[float, None] = None,
+    ) -> "VAD":
         """
         Load and initialize the Extended Silero VAD model.
 
@@ -73,7 +73,6 @@ class ExtendedVAD(silero.VAD):
             model=onnx_model.OnnxModel(
                 onnx_session=self._onnx_session, sample_rate=self._opts.sample_rate
             ),
-            parent_vad=self,
         )
         self._streams.append(stream)
         return stream
@@ -81,11 +80,11 @@ class ExtendedVAD(silero.VAD):
     def update_options(
         self,
         *,
-        min_speech_duration: float | None = None,
-        min_silence_duration: float | None = None,
-        prefix_padding_duration: float | None = None,
-        max_buffered_speech: float | None = None,
-        activation_threshold: float | None = None,
+        min_speech_duration: Union[float, None] = None,
+        min_silence_duration: Union[float, None] = None,
+        prefix_padding_duration: Union[float, None] = None,
+        max_buffered_speech: Union[float, None] = None,
+        activation_threshold: Union[float, None] = None,
     ) -> None:
         """
         Update the VAD options.
@@ -117,14 +116,17 @@ class ExtendedVADStream(agents.vad.VADStream):
         self._speech_buffer_max_reached = False
         self._prefix_padding_samples = 0  # (input_sample_rate)
 
+        self._max_attempts = 10
+        self._attempt_interval = 1
+
     def update_options(
         self,
         *,
-        min_speech_duration: float | None = None,
-        min_silence_duration: float | None = None,
-        prefix_padding_duration: float | None = None,
-        max_buffered_speech: float | None = None,
-        activation_threshold: float | None = None,
+        min_speech_duration: Union[float, None] = None,
+        min_silence_duration: Union[float, None] = None,
+        prefix_padding_duration: Union[float, None] = None,
+        max_buffered_speech: Union[float, None] = None,
+        activation_threshold: Union[float, None] = None,
     ) -> None:
         """
         Update the VAD options.
@@ -403,6 +405,8 @@ class ExtendedVADStream(agents.vad.VADStream):
                             )
                         )
 
+                        await self._confirm_speech_finished()
+
                         _reset_write_cursor()
 
                 # remove the frames that were used for inference from the input and inference frames
@@ -434,3 +438,32 @@ class ExtendedVADStream(agents.vad.VADStream):
                         )
                     )
 
+    async def _confirm_speech_finished(self):
+        """
+        Confirm if the speech has truly finished by calling `is_finished_speaking`.
+        Retry up to 10 times with 1-second intervals if necessary.
+        """
+        for attempt in range(1, self._max_attempts + 1):
+            if await self.is_finished_speaking():
+                logger.info(f"Speech confirmed finished on attempt {attempt}.")
+                self._finished_speaking = True
+                return
+            else:
+                logger.info(f"Speech not finished on attempt {attempt}, retrying in {self._attempt_interval} second(s).")
+                await asyncio.sleep(self._attempt_interval)
+        logger.info("Max attempts reached. Considering speech as finished.")
+        self._finished_speaking = True
+
+    async def is_finished_speaking(self) -> bool:
+        """
+        Placeholder method to determine if the voice has truly finished speaking.
+        Implement your custom logic here.
+
+        Returns:
+            bool: True if speaking has finished, False otherwise.
+        """
+        await asyncio.sleep(5)
+        # TODO: Implement your actual logic here
+        # For example, you might analyze additional audio frames, check external signals, etc.
+        # Here's a simple placeholder implementation that always returns True
+        return True
