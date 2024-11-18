@@ -50,7 +50,11 @@ logger = logging.getLogger("voice-agent")
 
 
 def prewarm(proc: JobProcess):
-    proc.userdata["vad"] = VAD.load()
+    proc.userdata["vad"] = silero.VAD.load()
+    # proc.userdata["vad"] = VAD.load()
+
+# TODO: left off: "user_stopped_talking" only seems to be triggered if the user speaks more than one
+# word.
 
 
 def fetch_initial_chat_message(agent_name: str):
@@ -219,9 +223,7 @@ async def entrypoint(ctx: JobContext):
         asyncio.create_task(filler_sound_player.stop())
 
     @assistant.on("user_stopped_speaking")
-    async def on_user_stopped_speaking():
-        await asyncio.sleep(10)
-
+    def on_user_stopped_speaking():
         asyncio.create_task(filler_sound_player.start())
 
     # Event handler for when the agent starts speaking

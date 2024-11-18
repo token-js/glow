@@ -393,6 +393,8 @@ class ExtendedVADStream(agents.vad.VADStream):
                         pub_speech_duration = 0.0
                         pub_silence_duration = silence_threshold_duration
 
+                        # await self._confirm_speech_finished()
+
                         self._event_ch.send_nowait(
                             agents.vad.VADEvent(
                                 type=agents.vad.VADEventType.END_OF_SPEECH,
@@ -404,8 +406,6 @@ class ExtendedVADStream(agents.vad.VADStream):
                                 speaking=False,
                             )
                         )
-
-                        await self._confirm_speech_finished()
 
                         _reset_write_cursor()
 
