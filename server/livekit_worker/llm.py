@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import os
 import asyncio
-import logging
-
 from prisma import Prisma
 from dataclasses import dataclass
 from typing import Any, MutableSet
@@ -16,8 +14,10 @@ from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from server.api.routes.chat import stream_and_update_chat
 from typing import Any, Coroutine
 from dataclasses import dataclass
+from server.logger.index import fetch_logger
 
-logger = logging.getLogger("voice-agent")
+logger = fetch_logger()
+
 
 class AsyncStream:
     def __init__(self, async_gen):
@@ -37,15 +37,34 @@ def get_next_item(it):
         return None
 
 
-def convert_stream_to_coroutine(messages, chat_id, user_id, timezone: str, ai_first_name: str, user_first_name: str, user_gender: str) -> Coroutine[Any, Any, 'AsyncStream[ChatCompletionChunk]']:
+def convert_stream_to_coroutine(
+    messages,
+    chat_id,
+    user_id,
+    timezone: str,
+    ai_first_name: str,
+    user_first_name: str,
+    user_gender: str,
+) -> Coroutine[Any, Any, "AsyncStream[ChatCompletionChunk]"]:
     async def wrapper():
-        sync_gen = stream_and_update_chat(messages=messages, chat_id=chat_id, user_id=user_id, chat_type='voice', timezone=timezone, ai_first_name=ai_first_name, user_first_name=user_first_name, user_gender=user_gender)
+        sync_gen = stream_and_update_chat(
+            messages=messages,
+            chat_id=chat_id,
+            user_id=user_id,
+            chat_type="voice",
+            timezone=timezone,
+            ai_first_name=ai_first_name,
+            user_first_name=user_first_name,
+            user_gender=user_gender,
+        )
         it = iter(sync_gen)
 
         async def async_gen():
             while True:
                 # Use a helper function to handle StopIteration
-                s = await asyncio.get_event_loop().run_in_executor(None, get_next_item, it)
+                s = await asyncio.get_event_loop().run_in_executor(
+                    None, get_next_item, it
+                )
                 if s is None:
                     break
                 yield s
@@ -90,7 +109,7 @@ class LLM(llm.LLM):
             agent_name=agent_name,
             user_name=user_name,
             user_gender=user_gender,
-            timezone=timezone
+            timezone=timezone,
         )
         self._running_fncs: MutableSet[asyncio.Task[Any]] = set()
 
@@ -106,9 +125,17 @@ class LLM(llm.LLM):
         logger.info("chat function")
 
         if fnc_ctx and len(fnc_ctx.ai_functions) > 0:
-          raise ValueError('Functions are not supported')
+            raise ValueError("Functions are not supported")
 
         messages = _build_oai_context(chat_ctx, id(self))
-        stream = convert_stream_to_coroutine(messages=messages, chat_id=self._opts.chat_id, user_id=self._opts.user, timezone=self._opts.timezone, ai_first_name=self._opts.agent_name, user_first_name=self._opts.user_name, user_gender=self._opts.user_gender)
+        stream = convert_stream_to_coroutine(
+            messages=messages,
+            chat_id=self._opts.chat_id,
+            user_id=self._opts.user,
+            timezone=self._opts.timezone,
+            ai_first_name=self._opts.agent_name,
+            user_first_name=self._opts.user_name,
+            user_gender=self._opts.user_gender,
+        )
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)

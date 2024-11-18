@@ -165,7 +165,6 @@ export const SettingsScreen = () => {
           }}
           onPress={handleLogout}
           accessible={true}
-          disabled={!aiName}
           accessibilityLabel="Confirm"
         >
           <Text

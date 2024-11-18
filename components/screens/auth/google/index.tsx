@@ -23,6 +23,10 @@ export const SignInWithGoogle: React.FC<Props> = ({ handleDidSignin }) => {
           token: userInfo.data.idToken,
         });
 
+        if (error) {
+          console.error(error);
+        }
+
         if (data.user) {
           await handleDidSignin(data.user, data.session);
         }

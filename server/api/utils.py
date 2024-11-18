@@ -14,6 +14,9 @@ from server.api.constants import CONTEXT_WINDOWS
 from supabase import create_client, Client
 from openai.types.completion_usage import CompletionUsage
 from mem0 import AsyncMemoryClient, MemoryClient
+from server.logger.index import fetch_logger
+
+logger = fetch_logger()
 
 
 # Verifies the cron secret token in the authorization header
@@ -267,6 +270,16 @@ async def search_memories(
     #
     # Mem0's `search` function won't return facts that have been deleted, so we don't need to filter
     # those out manually.
+    logger.info(
+        "Searching mem0 for relevant memories",
+        {
+            "query": message_content,
+            "top_k": 25,
+            "rerank": True,
+            "filters": {"user_id": user_id},
+            "version": "v2",
+        },
+    )
     memories = await mem0.search(
         query=message_content,
         top_k=25,
@@ -277,7 +290,9 @@ async def search_memories(
     return memories, encoding
 
 
-async def add_memories(messages: List[ChatCompletionMessageParam], user_id: str, model: str):
+async def add_memories(
+    messages: List[ChatCompletionMessageParam], user_id: str, model: str
+):
     mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
     encoding = tiktoken.get_encoding("cl100k_base")
@@ -307,6 +322,16 @@ async def add_memories(messages: List[ChatCompletionMessageParam], user_id: str,
     includes = "The user's preferences for how the AI should respond. These facts must mention the assistant explicitly; for example, say 'User prefers the assistant to respond with emojis', not 'User prefers responses with emojis'."
 
     truncated_messages = messages[-num_messages:]
+
+    logger.info(
+        "Adding memory to mem0",
+        {
+            "messages": truncated_messages,
+            "user_id": user_id,
+            "includes": includes,
+            "custom_categories": custom_categories,
+        },
+    )
     await mem0.add(
         messages=truncated_messages,
         user_id=user_id,

@@ -12,3 +12,7 @@ if not logger.hasHandlers():
     )
     handler.setFormatter(formatter)
     logger.addHandler(handler)
+
+
+def fetch_logger():
+    return logger

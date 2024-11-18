@@ -53,13 +53,15 @@ async def generate_response(
     memories = [
         memory
         for memory in relevant_memories_with_preferences
-        if "conversation_preferences" not in memory["categories"]
+        if memory["categories"] == None
+        or "conversation_preferences" not in memory["categories"]
     ]
 
     preferences = [
         memory
         for memory in all_memories
-        if "conversation_preferences" in memory["categories"]
+        if memory["categories"] != None
+        and "conversation_preferences" in memory["categories"]
     ]
 
     system_prompt = make_system_prompt(

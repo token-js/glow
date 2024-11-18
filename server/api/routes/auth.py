@@ -7,6 +7,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel
 from prisma import Prisma
 from datetime import datetime
+from ..supabase import fetch_user_profile
 
 router = APIRouter()
 
@@ -40,16 +41,11 @@ async def fetchToken(request: Request, user=Depends(authorize_user)):
     user_id = user["sub"]
     timezone = request.timezone
 
-    prisma = Prisma()
-    await prisma.connect()
-
-    async with prisma.tx():
-        user = await prisma.supabaseuserprofiles.find_unique(
-            where={"id": user_id}, include={"settings": True}
-        )
-        user_voice = user.settings.voice
-
-    await prisma.disconnect()
+    user = fetch_user_profile(user_id=user_id)
+    user_voice = user["settings"]["voice"]
+    user_name = user["settings"]["name"]
+    agent_name = user["settings"]["name"]
+    gender = user["settings"]["gender"]
 
     token = (
         api.AccessToken(os.getenv("LIVEKIT_API_KEY"), os.getenv("LIVEKIT_API_SECRET"))
@@ -58,10 +54,10 @@ async def fetchToken(request: Request, user=Depends(authorize_user)):
         .with_attributes(
             {
                 "voice": user_voice,
-                "name": user.settings.name,
-                "agent_name": user.settings.agentName,
+                "name": user_name,
+                "agent_name": agent_name,
                 "timezone": timezone,
-                "user_gender": user.settings.gender,
+                "user_gender": gender,
             }
         )
         .with_grants(
