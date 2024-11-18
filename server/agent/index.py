@@ -26,6 +26,8 @@ from server.api.utils import (
 )
 from mem0 import AsyncMemoryClient
 
+from server.scripts.debug_helpers import stream_given_text
+
 
 async def generate_response(
     llm: AsyncOpenAI,
@@ -83,6 +85,8 @@ async def generate_response(
     # Get the last 2048 elements of the array because OpenAI throws an error if the array is larger.
     truncated_messages = truncated_messages[-2048:]
 
-    return llm.chat.completions.create(
-        messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True
-    )
+    # TODO(end): undo
+    return stream_given_text("hi", 1)
+    # return llm.chat.completions.create(
+    #     messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True
+    # )

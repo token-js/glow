@@ -491,3 +491,26 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
                 return f"{years_difference} years ago"
 
     return ""
+
+# TODO(later):
+# Examples:
+
+# - Not finished: “Queen Elizabeth was born in, uh”. Time since user stopped talking: 1s
+# - Not finished: “Uh”. Time since user stopped talking:
+# - Finished: “I have a dog named buddy”. Time since user stopped talking: minDelay
+# - Finished: “Queen Elizabeth was born in, uh”. Time since user stopped talking: 9.9s
+# - Finished: “Let me think”. Time since user stopped talking: minDelay.
+
+# Notes:
+
+# - minDelay: The minimum amount of time that LiveKit pauses by default lafter the user has stopped talking
+# - maxWait: 10s. The max amount of time that can elapse after the user stops talking, regardless of whether the LLM says that the user has finished speaking.
+
+# Considerations:
+
+# - Do we need to prevent ourselves from sending too many LLM calls in a short duration?
+# - You should increase `minDelay` or at least the associated logic for starting the filler sound, which starts too quickly.
+# - Case: “Queen Elizabeth was born in, uh”. How long should we wait until we respond? This should probably be a constant. Otherwise, it’s possible that the LLM will never say it’s finished.
+# - How can we detect false positives and false negatives?
+# - What’s the cost of this?
+# - What’s the latency?

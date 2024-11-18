@@ -218,7 +218,9 @@ async def entrypoint(ctx: JobContext):
         asyncio.create_task(filler_sound_player.stop())
 
     @assistant.on("user_stopped_speaking")
-    def on_user_stopped_speaking():
+    async def on_user_stopped_speaking():
+        await asyncio.sleep(10)
+
         asyncio.create_task(filler_sound_player.start())
 
     # Event handler for when the agent starts speaking
