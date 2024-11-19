@@ -18,6 +18,7 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
   const piArray: Array<RawExportedPiData> = readdirSync('pi').map(fileName => JSON.parse(readFileSync(`pi/${fileName}`, 'utf-8')))
   const syntheticData: Array<Array<ChatCompletionMessageParam>> = JSON.parse(readFileSync('synthetic/data.json', 'utf-8'))
 
+  // Split the long Pi samples into many small samples
   const trainingData: Array<TrainingDataExample> = []
   for (const piData of piArray) {
     const converted = piData.user_data.messages.map(convertPiMessageToChatMessage)
@@ -49,6 +50,7 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
   }
 
 
+  // Split the synthetic data into many small samples
   const syntheticDataAiName = 'Charlotte'
   const syntheticDataUserFirstName = 'Bob'
   for (const messages of syntheticData) {
@@ -78,34 +80,6 @@ const dataFilePath = 'scripts/fine-tune/data/20241106_150540_clean.json'
       }
     }
   }
-
-  // const data = JSON.parse(readFileSync(dataFilePath, 'utf-8'))
-  
-  // if (!isFineTuningExample(data)) {
-  //   throw new Error(`TODO(docs)`)
-  // }
-  
-  // for (let i = 0; i < data.messages.length; i++) {
-  //   const message = data.messages[i]
-  //   if (isFineTuningAssistantMessage(message) && getWeight(message) === 1) {
-  //     const previousMessages = data.messages.slice(0, i).map(convertToChatCompletionMessageParam).map(message => {
-  //       // TODO(docs): weight = 0 because...
-  //       if (message.role === 'assistant') {
-  //         return {
-  //           ...message,
-  //           weight: 0
-  //         }
-  //       }
-  //       return message
-  //     })
-      
-  //     const messageWithWeight = {
-  //       ...convertToChatCompletionMessageParam(message),
-  //       weight: 1
-  //     }
-  //     trainingData.push([...previousMessages, messageWithWeight])
-  //   }
-  // }
 
   validateTrainingDataset(trainingData, MODEL_NAME)
 
