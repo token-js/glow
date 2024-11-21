@@ -8,7 +8,7 @@ from openai import OpenAI
 from pydantic import BaseModel
 from typing import List
 from fastapi import APIRouter, Depends, HTTPException
-from server.api.constants import FINE_TUNED_MODEL
+from server.api.constants import LLM
 from server.api.utils import add_memories, authorize_user
 from prisma import Prisma, enums, types
 from pydantic import BaseModel
@@ -77,48 +77,6 @@ def message_to_fixed_string_content(message: dict) -> dict:
         }
 
 
-async def update_chat(
-    messages: List[dict],
-    chat_id: str,
-    agent_response: str,
-):
-    prisma = Prisma()
-    await prisma.connect()
-
-    async with prisma.tx():
-        # Get the last user message (pop if the last message is a system message)
-        new_user_message = messages.pop()
-        while new_user_message["role"] == "system":
-            new_user_message = messages.pop()
-
-        content = message_to_fixed_string_content(new_user_message)["content"]
-
-        # Create new user chat message
-        await prisma.chatmessages.create(
-            data=types.ChatMessagesCreateInput(
-                chatId=chat_id,
-                role=enums.OpenAIRole.user,
-                content=content,
-            )
-        )
-
-        # Create new agent chat message
-        await prisma.chatmessages.create(
-            data=types.ChatMessagesCreateInput(
-                chatId=chat_id,
-                role=enums.OpenAIRole.assistant,
-                content=agent_response,
-            )
-        )
-
-        await prisma.chats.update(
-            where={"id": chat_id},
-            data=types.ChatsUpdateInput(lastMessageTime=datetime.now()),
-        )
-
-    await prisma.disconnect()
-
-
 async def call_update_chat(
     messages: List[dict],
     agent_response: str,
@@ -126,9 +84,7 @@ async def call_update_chat(
     agent_message_timestamp: datetime,
     chat_id: str,
 ):
-    new_user_message = messages.pop()
-    while new_user_message["role"] == "system":
-        new_user_message = messages.pop()
+    new_user_message = next(msg for msg in reversed(messages) if msg["role"] == "user")
     new_user_message = message_to_fixed_string_content(new_user_message)["content"]
 
     data = {
@@ -166,6 +122,10 @@ def stream_and_update_chat(
     client = OpenAI(
         api_key=os.environ.get("OPENAI_API_KEY"),
     )
+
+    ai_first_name = ai_first_name.strip()
+    user_first_name = user_first_name.strip()
+    user_gender = user_gender.strip()
 
     # This implementation uses the vercel text streaming protocol
     # https://sdk.vercel.ai/docs/ai-sdk-ui/stream-protocol#text-stream-protocol
@@ -243,7 +203,7 @@ async def final_processing_coroutine(
     await add_memories(
         messages=messages + [{"role": "assistant", "content": agent_response}],
         user_id=user_id,
-        model=FINE_TUNED_MODEL,
+        model=LLM,
     )
 
     await track_sent_message(

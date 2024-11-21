@@ -1,4 +1,4 @@
-FINE_TUNED_MODEL = "ft:gpt-4o-mini-2024-07-18:glade::ARBGesfJ"
+LLM = "gpt-4o-mini-2024-07-18"
 
-CONTEXT_WINDOWS = {"gpt-4o-mini-2024-07-18": 128000, "inflection_3_pi": 8000}
-CONTEXT_WINDOWS[FINE_TUNED_MODEL] = 128000
+CONTEXT_WINDOWS = {"inflection_3_pi": 8000}
+CONTEXT_WINDOWS[LLM] = 128000

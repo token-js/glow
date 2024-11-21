@@ -18,10 +18,10 @@ import aiohttp
 import json
 import uuid
 
-from server.api.constants import FINE_TUNED_MODEL
+from server.api.constants import LLM
 from server.api.utils import (
+    add_system_prompts,
     get_final_messages_by_token_limit,
-    make_system_prompt,
     search_memories,
 )
 from mem0 import AsyncMemoryClient
@@ -43,7 +43,7 @@ async def generate_response(
             mem0=mem0,
             messages=messages,
             user_id=user_id,
-            model=FINE_TUNED_MODEL,
+            model=LLM,
         ),
         mem0.get_all(
             filters={"user_id": user_id},
@@ -64,7 +64,8 @@ async def generate_response(
         and "conversation_preferences" in memory["categories"]
     ]
 
-    system_prompt = make_system_prompt(
+    messages_with_system_prompts = add_system_prompts(
+        messages=messages,
         ai_first_name=ai_first_name,
         user_first_name=user_first_name,
         user_gender=user_gender,
@@ -72,12 +73,9 @@ async def generate_response(
         memories=memories,
         preferences=preferences,
     )
-    messages_with_system_prompt = messages + [
-        {"role": "system", "content": system_prompt}
-    ]
     truncated_messages = get_final_messages_by_token_limit(
-        messages=messages_with_system_prompt,
-        model=FINE_TUNED_MODEL,
+        messages=messages_with_system_prompts,
+        model=LLM,
         encoding=encoding,
         token_limit=125000,
     )
@@ -86,5 +84,5 @@ async def generate_response(
     truncated_messages = truncated_messages[-2048:]
 
     return llm.chat.completions.create(
-        messages=truncated_messages, model=FINE_TUNED_MODEL, stream=True, store=True
+        messages=truncated_messages, model=LLM, stream=True, store=True
     )
