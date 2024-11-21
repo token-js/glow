@@ -28,7 +28,7 @@ kill_timeout = '5m0s'
     path = '/api/health'
 
 [[vm]]
-  memory = '1gb'
+  memory = '2gb'
   cpu_kind = 'shared'
   cpus = 1
   processes = ['agent']
