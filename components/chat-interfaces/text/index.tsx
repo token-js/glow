@@ -37,21 +37,31 @@ export const LoadingChatInterface = forwardRef<ChatInterfaceHandle, Props>(
     }, []);
 
     async function getChat() {
-      const chatWithMessagesQuery = supabase
+      const chatQuery = supabase
         .from("chats")
-        .select(`*, chat_messages (*)`)
+        .select(`*`)
         .eq("user_id", userId);
-      type ChatsWithMessages = QueryData<typeof chatWithMessagesQuery>;
-
-      const { data, error } = await chatWithMessagesQuery;
+      type ChatsWithMessages = QueryData<typeof chatQuery>;
+      const { data, error } = await chatQuery;
 
       if (error) throw error;
       const chatsWithMessages: ChatsWithMessages = data;
       const chat = chatsWithMessages.at(-1);
       setChat(chat);
 
-      const messages = chat?.chat_messages ?? [];
-      setInitialMessages(messages);
+      const messagesQuery = supabase
+        .from("chat_messages")
+        .select("*")
+        .eq("chat_id", chat?.id!)
+        .order("created", {
+          ascending: false,
+        })
+        .limit(1000);
+
+      const { data: messages, error: messageQueryError } = await messagesQuery;
+      if (messageQueryError) throw messageQueryError;
+
+      setInitialMessages(messages.reverse());
     }
 
     if (!chat) {
@@ -94,6 +104,10 @@ export const ChatInterface = forwardRef<
     chatId,
   });
 
+  useEffect(() => {
+    flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
+  }, [chatMessages.length]);
+
   // Expose sendMessage via ref
   useImperativeHandle(ref, () => ({
     sendMessage,
@@ -124,10 +138,6 @@ export const ChatInterface = forwardRef<
       renderItem={renderItem}
       keyExtractor={(item) => item.id.toString()}
       contentContainerStyle={styles.messagesList}
-      onContentSizeChange={
-        () => flatListRef.current?.scrollToOffset({ animated: true, offset: 0 })
-        // flatListRef.current?.scrollTo({ animated: true })
-      }
       inverted
       keyboardShouldPersistTaps="handled"
       style={{

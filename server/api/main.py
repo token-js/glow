@@ -2,10 +2,7 @@ import os
 import sentry_sdk
 import logging
 from fastapi import FastAPI
-from server.api.routes import (
-    chat,
-    auth
-)
+from server.api.routes import chat, auth
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 

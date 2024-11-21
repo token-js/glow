@@ -25,6 +25,10 @@ from datetime import datetime
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from .voices import VoiceSettingMapping
+from server.logger.index import fetch_logger
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sentry_sdk.init(
     dsn=os.getenv("EXPO_PUBLIC_SENTRY_DSN"),
@@ -44,8 +48,7 @@ sentry_sdk.init(
 parent_dir = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(parent_dir))
 
-load_dotenv(dotenv_path=".env")
-logger = logging.getLogger("voice-agent")
+logger = fetch_logger()
 
 
 def prewarm(proc: JobProcess):
@@ -197,6 +200,7 @@ async def entrypoint(ctx: JobContext):
             ),
             api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
         ),
+        min_endpointing_delay=1,
         chat_ctx=initial_ctx,
     )
 

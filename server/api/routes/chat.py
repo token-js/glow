@@ -17,10 +17,9 @@ from server.api.analytics import track_sent_message
 from fastapi.responses import JSONResponse
 from server.agent.index import generate_response
 import asyncio
-import logging
-import requests
+from server.logger.index import fetch_logger
 
-logger = logging.getLogger("voice-agent")
+logger = fetch_logger()
 
 
 class ClientAttachment(BaseModel):
@@ -215,7 +214,7 @@ def stream_and_update_chat(
                 chat_id=chat_id,
                 user_id=user_id,
                 chat_type=chat_type,
-                user_message_timestamp=user_message_timestamp
+                user_message_timestamp=user_message_timestamp,
             )
         ),
         daemon=True,
@@ -229,7 +228,7 @@ async def final_processing_coroutine(
     chat_id: str,
     user_id: str,
     chat_type: str,
-    user_message_timestamp: datetime
+    user_message_timestamp: datetime,
 ) -> None:
     agent_message_timestamp = datetime.now()
 
@@ -299,7 +298,7 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
         ),
         prisma.settings.find_unique(
             where={"id": user_id},
-        )
+        ),
     )
 
     if chat.userId != user_id:
