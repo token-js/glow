@@ -38,18 +38,28 @@ async def generate_response(
 ):
     mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
-    (relevant_memories_with_preferences, encoding), all_memories = await asyncio.gather(
-        search_memories(
-            mem0=mem0,
-            messages=messages,
-            user_id=user_id,
-            model=LLM,
-        ),
-        mem0.get_all(
-            filters={"user_id": user_id},
-            version="v2",
-        ),
-    )
+    relevant_memories_with_preferences = []
+    all_memories = []
+    try:
+        (relevant_memories_with_preferences, encoding), all_memories = (
+            await asyncio.gather(
+                search_memories(
+                    mem0=mem0,
+                    messages=messages,
+                    user_id=user_id,
+                    model=LLM,
+                ),
+                mem0.get_all(
+                    filters={"user_id": user_id},
+                    version="v2",
+                ),
+            )
+        )
+    except Exception as e:
+        # Log the exception this will send it to sentry, but we'll still process the response
+        # We do this because mem0 isn't always the most stable...
+        logger.error(e, exc_info=True)
+
     memories = [
         memory
         for memory in relevant_memories_with_preferences
