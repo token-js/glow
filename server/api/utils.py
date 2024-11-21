@@ -277,7 +277,9 @@ async def search_memories(
     return memories, encoding
 
 
-async def add_memories(messages: List[ChatCompletionMessageParam], user_id: str, model: str):
+async def add_memories(
+    messages: List[ChatCompletionMessageParam], user_id: str, model: str
+):
     mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
     encoding = tiktoken.get_encoding("cl100k_base")
@@ -315,21 +317,18 @@ async def add_memories(messages: List[ChatCompletionMessageParam], user_id: str,
     )
 
 
-# If we change this prompt in production, we should strongly consider fine-tuning the LLM again with
-# the new system prompt.
-def make_system_prompt(
+def add_system_prompts(
+    messages: List[ChatCompletionMessageParam],
     ai_first_name: str,
     user_first_name: str,
     user_gender: str,
     timezone: str,
     memories: List[Dict[str, Any]],
     preferences: List[Dict[str, Any]],
-) -> str:
+) -> List[ChatCompletionMessageParam]:
     current_time = datetime.now()
 
-    memories_str = ""
-    preferences_str = ""
-
+    memories_system_prompt = ""
     if memories:
         memories_with_time = []
         for fact in memories:
@@ -353,8 +352,9 @@ def make_system_prompt(
             )
 
         formatted_memories = "\n".join(memories_with_time)
-        memories_str = f"""\n\nBelow is a list of memories from your previous conversations with {user_first_name}. These memories may or may not be relevant to the current conversation. Each memory is enclosed within <MEMORY> tags and includes a relative time reference (e.g., 'One week ago') indicating when the memory was created.\n{formatted_memories}"""
+        memories_system_prompt = f"""This system prompt contains a list of memories from your previous conversations with {user_first_name}. You must only incorporate a memory if it is relevant to the user's latest message; for example, if the user's latest message says that they're looking for a gift for their mom, and a memory mentions that their mom loves Ottolenghi, you can incorporate this memory into your response by suggesting a gift such as an Ottolenghi cookbook. Each memory is enclosed within <MEMORY> tags and includes a relative time reference (e.g., 'One week ago') indicating when the memory was created.\n{formatted_memories}"""
 
+    preferences_str = ""
     if preferences:
         preferences_with_tags = []
         for preference in preferences:
@@ -366,11 +366,48 @@ def make_system_prompt(
             )
 
         formatted_preferences = "\n".join(preferences_with_tags)
-        preferences_str = f"""\n\nBelow is a list of preferences for how {user_first_name} prefers you respond. Each preference is enclosed within <PREFERENCE> tags.\n{formatted_preferences}"""
+        preferences_str = f"""\n\nBelow is a list of preferences for how {user_first_name} prefers you to respond. Each preference is enclosed within <PREFERENCE> tags.\n{formatted_preferences}"""
 
-    system_prompt = f"""Your name is {ai_first_name}. You are talking to {user_first_name}, whose gender is: {user_gender}.{memories_str}{preferences_str}"""
+    # The instructions that say "Do not hallucinate content" and "Don't repeat yourself across
+    # consecutive messages" may not have any effect.
+    instructions_and_preferences_system_prompt = f"""You are an AI whose name is {ai_first_name}. You are talking to {user_first_name}, whose gender is {user_gender}. Match the user's energy and tone: if the user is relaxed, respond casually; if excited, mirror their enthusiasm; if they're talking about something personal, be empathetic; if they're being goofy and making jokes, do the same, etc. Always leave the user with something to respond to. Avoid asking multiple separate questions at once, since this can overwhelm the user and disrupt the natural flow of conversation. Avoid combining multiple questions into one; for example, instead of asking, 'Do you have a favorite sports team or player?', ask 'Do you have a favorite sports team?' or 'Do you have a favorite player?'. Do not ask the user a question that they answered earlier in the conversation; for example, if the user already mentioned their favorite sports team, don't ask something like, "Which sports team do you like the most?". Do not hallucinate content; for example, if the user says 'Good morning', do not hallucinate that they are asking for the current time. Don't repeat yourself across consecutive messages because this feels redundant; for example, if you say, \"Hey, how's it going?\" and the user replies \"Hey\", your response should not start with "Hey" because you already said this in the previous message. Unless you're stating an absolute fact, like "the sky is blue", you must express your responses as your own opinions using phrases like "I think", "In my opinion", "I feel like", etc; for example, instead of saying, "Dogs are the best pets", or, "people think dogs are the best pets" you should say something like, "I think dogs are the best pets"... it's not enough to say phrases like "it's understandable" or "it's fascinating" that only imply your perspective; you need to explicitly express it as your own opinion. Accordingly, if the user asks for your opinion by saying something like, "What's an interesting fact", your response must be expressed as your opinion, like "I think an interesting fact is...", and not something like, "An interesting fact is..." or "People think an interesting fact is...". Continue the conversation based on the user's latest response; for example, if the user asked you a question, answer their question.{preferences_str}"""
+    message_copy = copy.deepcopy(messages)
 
-    return system_prompt
+    message_copy.append(
+        {
+            "role": "system",
+            "content": instructions_and_preferences_system_prompt,
+        }
+    )
+
+    # Include the system prompt for the long-term memories. We put this prompt a few messages before
+    # the end of the array because putting it at the end of the array causes the model to
+    # incorporate irrelevant memories into its response. Putting the system prompt a few messages
+    # earlier solves this problem without worsening the model's ability to incorporate relevant
+    # memories into its response. To see an example demonstrating how the model incorporates
+    # irrelevant memories when the system prompt is at the end of the array, check out the messages
+    # in the following Gist: https://gist.github.com/sam-goldman/3d2876c9e37a484bfe399968cc675072.
+    # If you use the messages in the Gist as inputs to an LLM, you'll notice that the model mentions
+    # Shazam tracks ~25-50% of the time, which should be closer to 0% because Shazam isn't relevant
+    # to the current conversation. If you put the memories into a separate system prompt a few
+    # messages earlier, you'll see the percentage drop to 0%. To see an example demonstrating how
+    # putting the system prompt for memories earlier doesn't impact the model's ability to
+    # incorporate relevant memories into its responses, run the messages in the following Gist as
+    # inputs to an LLM: https://gist.github.com/sam-goldman/34a08da2792e57c8c21543bb48544cdd. You'll
+    # notice that every response from the LLM mentions Mediterranean food or Ottolenghi, which is
+    # information stored as a memory.
+    if memories_system_prompt:
+        memories_message = {
+            "role": "system",
+            "content": memories_system_prompt,
+        }
+
+        # If array is too small, insert the memories system prompt at the beginning. Otherwise,
+        # insert it three elements behind the last message.
+        insert_index = 0 if len(message_copy) < 4 else len(message_copy) - 3
+        message_copy.insert(insert_index, memories_message)
+
+    return message_copy
 
 
 def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) -> str:

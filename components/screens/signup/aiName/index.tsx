@@ -25,7 +25,7 @@ export const AINameInput: React.FC<
   return (
     <TextInput
       style={[theme.input, isFocused && theme.inputFocused, { textAlign }]}
-      placeholder="Type your assistants name"
+      placeholder="Type your AI's name"
       placeholderTextColor="#888"
       value={aiName}
       onChangeText={setAIName}
@@ -55,7 +55,7 @@ export const AINameSection: React.FC<Props> = ({
             },
           ]}
         >
-          Customize your assistant's name.
+          Customize your AI's name
         </Text>
         <AINameInput setAIName={setAIName} aiName={aiName} textAlign="center" />
       </View>

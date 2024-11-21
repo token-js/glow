@@ -1,8 +1,8 @@
 import asyncio
 import logging
 import os
+import uuid
 import asyncpg
-import cuid
 import sentry_sdk
 from dotenv import load_dotenv
 from livekit.agents import (
@@ -52,9 +52,8 @@ def prewarm(proc: JobProcess):
     proc.userdata["vad"] = silero.VAD.load()
 
 
-def fetch_initial_chat_message(agent_name: str):
-    return f"""Hey there, great to meet you. I'm {agent_name}, your personal AI. My goal is to be useful, friendly and fun.
-Ask me for advice, for answers, or let's talk about whatever's on your mind. How's your day going?"""
+def fetch_initial_chat_message(user_name: str):
+    return f"""Hey, great to meet you, {user_name}! How's it going?"""
 
 
 async def get_chat(user_id: str, user_name: str, agent_name: str):
@@ -101,8 +100,8 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
         )
 
         if len(messages) == 0:
-            message_id = cuid.cuid()
-            first_chat_message = fetch_initial_chat_message(agent_name=agent_name)
+            message_id = str(uuid.uuid4())
+            first_chat_message = fetch_initial_chat_message(user_name=user_name)
             message_role = "assistant"
             created = datetime.now()
             modified = datetime.now()
