@@ -332,12 +332,18 @@ async def add_memories(
             "custom_categories": custom_categories,
         },
     )
-    await mem0.add(
-        messages=truncated_messages,
-        user_id=user_id,
-        includes=includes,
-        custom_categories=custom_categories,
-    )
+
+    try:
+        await mem0.add(
+            messages=truncated_messages,
+            user_id=user_id,
+            includes=includes,
+            custom_categories=custom_categories,
+        )
+    except Exception as e:
+        # Log the exception this will send it to sentry, but we'll still process the response
+        # We do this because mem0 isn't always the most stable...
+        logger.error(e, exc_info=True)
 
 
 def add_system_prompts(
