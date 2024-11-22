@@ -5,6 +5,7 @@ export default ({ config }: ConfigContext): ExpoConfig => ({
   name: "Glow",
   slug: "Glow",
   scheme: "glow",
+  owner: "glowhealth",
   version: "0.1.0",
   orientation: "portrait",
   icon: "./assets/icon.png",
