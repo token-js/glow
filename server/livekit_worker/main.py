@@ -216,19 +216,6 @@ async def entrypoint(ctx: JobContext):
 
     assistant.start(ctx.room, participant)
 
-    @assistant.on("user_started_speaking")
-    def on_user_started_speaking():
-        asyncio.create_task(filler_sound_player.stop())
-
-    @assistant.on("user_stopped_speaking")
-    def on_user_stopped_speaking():
-        asyncio.create_task(filler_sound_player.start())
-
-    # Event handler for when the agent starts speaking
-    @assistant.on("agent_started_speaking")
-    def on_agent_started_speaking():
-        asyncio.create_task(filler_sound_player.stop())
-
     if send_first_chat_message:
         await assistant.say(first_chat_message, allow_interruptions=True)
 
