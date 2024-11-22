@@ -67,6 +67,7 @@ async def generate_response(
         or "conversation_preferences" not in memory["categories"]
     ]
 
+    all_memories = all_memories['results'] if isinstance(all_memories, dict) else all_memories
     preferences = [
         memory
         for memory in all_memories
