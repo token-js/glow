@@ -102,7 +102,11 @@ async def run_with_timeout(func, *args, timeout=None, timeout_response=None, **k
 
 
 def unsafe_fetch_mem0():
-    return AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
+    try:
+        return AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
+    except Exception as e:
+        logger.error(e, exc_info=True)
+        return None
 
 
 async def fetch_mem0():

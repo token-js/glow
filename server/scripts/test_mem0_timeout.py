@@ -37,13 +37,11 @@ async def run_with_timeout(func, *args, timeout=None, **kwargs):
 # Define your functions
 def sync_create_mem0():
     # Blocking call using time.sleep()
-    time.sleep(2)
     return AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
 
 async def async_create_mem0():
     # Non-blocking call using asyncio.sleep()
-    await asyncio.sleep(2)
     return AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
 
 
