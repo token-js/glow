@@ -1,13 +1,15 @@
 # Standard library imports
 import copy
-from datetime import datetime, timedelta
 import os
-from typing import Any, Dict, List, Optional, Tuple
 import zoneinfo
 import jwt
-
-from openai.types.chat import ChatCompletionMessageParam
+import asyncio
 import tiktoken
+
+from datetime import datetime, timedelta
+from typing import Any, Dict, List, Optional, Tuple
+from functools import partial
+from openai.types.chat import ChatCompletionMessageParam
 from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from server.api.constants import CONTEXT_WINDOWS
@@ -72,6 +74,39 @@ def create_supabase_client():
     key: str = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
     supabase: Client = create_client(url, key)
     return supabase
+
+
+async def run_with_timeout(func, *args, timeout=None, timeout_response=None, **kwargs):
+    if asyncio.iscoroutinefunction(func):
+        # The function is asynchronous
+        try:
+            return await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
+        except asyncio.TimeoutError:
+            print(
+                f"TimeoutError: Function '{func.__name__}' timed out after {timeout} seconds."
+            )
+            return timeout_response
+    else:
+        # The function is synchronous
+        loop = asyncio.get_running_loop()
+        try:
+            partial_func = partial(func, *args, **kwargs)
+            return await asyncio.wait_for(
+                loop.run_in_executor(None, partial_func), timeout=timeout
+            )
+        except asyncio.TimeoutError:
+            print(
+                f"TimeoutError: Function '{func.__name__}' timed out after {timeout} seconds."
+            )
+            return timeout_response
+
+
+def unsafe_fetch_mem0():
+    return AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
+
+
+async def fetch_mem0():
+    return await run_with_timeout(unsafe_fetch_mem0, timeout=0.5)
 
 
 # Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
@@ -293,7 +328,11 @@ async def search_memories(
 async def add_memories(
     messages: List[ChatCompletionMessageParam], user_id: str, model: str
 ):
-    mem0 = AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
+    mem0 = await fetch_mem0()
+
+    # The mem0 client may be none if the call to fetch it timed out in which case we just return
+    if mem0 is None:
+        return
 
     encoding = tiktoken.get_encoding("cl100k_base")
 
