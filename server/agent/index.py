@@ -1,30 +1,18 @@
 import asyncio
-import os
-from openai.types.chat import ChatCompletionMessageParam, ChatCompletionChunk
-from typing import Any, List
-from openai import OpenAI, AsyncOpenAI
-from openai import Stream
-from typing import AsyncGenerator, List, Dict, Optional
+from openai.types.chat import ChatCompletionMessageParam
+from typing import List
+from openai import AsyncOpenAI
+from typing import List
 
-from prisma import Prisma
 import tiktoken
 from livekit.plugins.openai.log import logger
-from openai.types.chat.chat_completion_chunk import (
-    ChatCompletionChunk,
-    Choice,
-    ChoiceDelta,
-)
-import aiohttp
-import json
-import uuid
+from server.api.mem0 import fetch_all_memories
 
 from server.api.constants import LLM
 from server.api.utils import (
     add_system_prompts,
     get_final_messages_by_token_limit,
     search_memories,
-    run_with_timeout,
-    fetch_mem0,
 )
 
 
@@ -37,29 +25,22 @@ async def generate_response(
     user_first_name: str,
     user_gender: str,
 ):
-    mem0 = await fetch_mem0()
-
     encoding = tiktoken.get_encoding("cl100k_base")
     relevant_memories_with_preferences = []
     all_memories = []
     try:
         # The mem0 client may be None if the call to fetch it timed out. In this case, we use defaults for the memories so
         # the chat continues to function.
-        if mem0 is not None:
-            (relevant_memories_with_preferences, encoding), all_memories = (
-                await asyncio.gather(
-                    search_memories(
-                        mem0=mem0,
-                        messages=messages,
-                        user_id=user_id,
-                        model=LLM,
-                    ),
-                    mem0.get_all(
-                        filters={"user_id": user_id},
-                        version="v2",
-                    ),
-                )
+        (relevant_memories_with_preferences, encoding), all_memories = (
+            await asyncio.gather(
+                search_memories(
+                    messages=messages,
+                    user_id=user_id,
+                    model=LLM,
+                ),
+                fetch_all_memories(user_id=user_id),
             )
+        )
     except Exception as e:
         # Log the exception this will send it to sentry, but we'll still process the response
         # We do this because mem0 isn't always the most stable...
