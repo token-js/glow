@@ -14,14 +14,19 @@ type Props = {
 
 export const SignInWithGoogle: React.FC<Props> = ({ handleDidSignin }) => {
   const onPress = async () => {
+    console.log("logging in");
     try {
       await GoogleSignin.hasPlayServices();
       const userInfo = await GoogleSignin.signIn();
+      console.log(userInfo);
       if (userInfo.data?.idToken) {
+        console.log("signing in with token");
         const { data, error } = await supabase.auth.signInWithIdToken({
           provider: "google",
           token: userInfo.data.idToken,
         });
+        console.log(data);
+        console.log(error);
 
         if (error) {
           console.error(error);

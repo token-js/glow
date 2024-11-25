@@ -17,6 +17,8 @@ from supabase import create_client, Client
 from openai.types.completion_usage import CompletionUsage
 from mem0 import AsyncMemoryClient, MemoryClient
 from server.logger.index import fetch_logger
+from server.api.mem0 import call_add_memory
+from server.api.mem0 import call_search_memories
 
 logger = fetch_logger()
 
@@ -74,43 +76,6 @@ def create_supabase_client():
     key: str = os.environ.get("NEXT_PUBLIC_SUPABASE_ANON_KEY")
     supabase: Client = create_client(url, key)
     return supabase
-
-
-async def run_with_timeout(func, *args, timeout=None, timeout_response=None, **kwargs):
-    if asyncio.iscoroutinefunction(func):
-        # The function is asynchronous
-        try:
-            return await asyncio.wait_for(func(*args, **kwargs), timeout=timeout)
-        except asyncio.TimeoutError:
-            print(
-                f"TimeoutError: Function '{func.__name__}' timed out after {timeout} seconds."
-            )
-            return timeout_response
-    else:
-        # The function is synchronous
-        loop = asyncio.get_running_loop()
-        try:
-            partial_func = partial(func, *args, **kwargs)
-            return await asyncio.wait_for(
-                loop.run_in_executor(None, partial_func), timeout=timeout
-            )
-        except asyncio.TimeoutError:
-            print(
-                f"TimeoutError: Function '{func.__name__}' timed out after {timeout} seconds."
-            )
-            return timeout_response
-
-
-def unsafe_fetch_mem0():
-    try:
-        return AsyncMemoryClient(api_key=os.environ.get("MEM0_API_KEY"))
-    except Exception as e:
-        logger.error(e, exc_info=True)
-        return None
-
-
-async def fetch_mem0():
-    return await run_with_timeout(unsafe_fetch_mem0, timeout=0.5)
 
 
 # Taken from: https://cookbook.openai.com/examples/how_to_count_tokens_with_tiktoken
@@ -268,7 +233,6 @@ def get_final_messages_by_token_limit(
 
 
 async def search_memories(
-    mem0: AsyncMemoryClient,
     messages: List[ChatCompletionMessageParam],
     user_id: str,
     model: str,
@@ -319,25 +283,16 @@ async def search_memories(
             "version": "v2",
         },
     )
-    memories = await mem0.search(
-        query=message_content,
-        top_k=25,
-        rerank=True,
-        filters={"user_id": user_id},
-        version="v2",
+    memories = await call_search_memories(
+        message_content=message_content, user_id=user_id
     )
+
     return memories, encoding
 
 
 async def add_memories(
     messages: List[ChatCompletionMessageParam], user_id: str, model: str
 ):
-    mem0 = await fetch_mem0()
-
-    # The mem0 client may be none if the call to fetch it timed out in which case we just return
-    if mem0 is None:
-        return
-
     encoding = tiktoken.get_encoding("cl100k_base")
 
     # Get the number of messages to include when creating the latest memories. We include some
@@ -376,17 +331,7 @@ async def add_memories(
         },
     )
 
-    try:
-        await mem0.add(
-            messages=truncated_messages,
-            user_id=user_id,
-            includes=includes,
-            custom_categories=custom_categories,
-        )
-    except Exception as e:
-        # Log the exception this will send it to sentry, but we'll still process the response
-        # We do this because mem0 isn't always the most stable...
-        logger.error(e, exc_info=True)
+    await call_add_memory(truncated_messages, user_id, includes, custom_categories)
 
 
 def add_system_prompts(

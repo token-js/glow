@@ -19,9 +19,9 @@ python -m venv .venv && source .venv/bin/activate && pip install -r server/requi
 ```
 
 ## 2. Fill out .env file
-There's a template of the variables required in `.env.example`. Ryan will send you a copy of this file with as many filled in as possible. 
+There's a template of the variables required in `.env.example`. Ryan will send you a copy of this file with as many filled in as possible.
 
-You will need to fill in your own `EXPO_PUBLIC_API_URL` which should be your NGROK url. This is unique to your NGROK account. You should already have one from when we were working on the first iteration which used phone calls. 
+You will need to fill in your own `EXPO_PUBLIC_API_URL` which should be your NGROK url. This is unique to your NGROK account. You should already have one from when we were working on the first iteration which used phone calls.
 
 ## 3. Run the backend services
 ```sh
@@ -53,3 +53,51 @@ npm run ios
 ```
 
 Finally, scan the QR code in the terminal and the app should be opened on your phone.
+
+# Using Supabase Local
+Developing with a locally running version of Supabase ensures your work does not interfere with others. Here are the steps to get started with Supabase local.
+
+## 1. Install or Upgrade Supabase CLI
+Install:
+```
+brew install supabase/tap/supabase
+```
+
+Upgrade:
+```
+brew upgrade supabase
+```
+
+## 2. Start Supabase Instance
+```
+supabase start
+```
+
+Take note of the output, you'll need some of the values output here for step 4.
+
+## 3. Get your Macbooks hostname
+Run this command and take note of the result. This is a domain that is only valid on your Wifi network and will allow you to access the local Supabase instance from a real device when working on the app.
+```
+hostname
+```
+
+## 4. Setup Supabase Environment variables
+You'll need to update a few environment variables to point at your local Supabase instance. You'll also need to update your Supabase acess keys to work with the local instance.
+
+Substitute `<hostname>` for the result from the previous step.
+```
+EXPO_PUBLIC_SUPABASE_URL=http://<hostname>:54321
+EXPO_PUBLIC_API_URL=<hostname>
+
+DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+DIRECT_DATABASE_URL=postgresql://postgres:postgres@127.0.0.1:54322/postgres
+
+EXPO_PUBLIC_SUPABASE_ANON_KEY=<output by step 2>
+SUPABASE_JWT_SECRET=<output by step 2>
+SUPABASE_SECRET_KEY=<output by step 2>
+```
+
+## Configuring Supabase
+When working with Supabase, you may need to occasionally update settings or other configuration (like enabling new authentication providers for example). If/when you need to do this, you *must* make sure that you make the configuration changes in the `supabase/config.toml` file and *not* using the local studio UI. The reason for this is to ensure that your changes can be replicated by others in their local environments.
+
+Of course, when deploying to the staging and production environments you must also make sure those environments are configured correctly for your changes.
