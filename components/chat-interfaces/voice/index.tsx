@@ -5,18 +5,14 @@ import {
   registerGlobals,
   useRemoteParticipant,
 } from "@livekit/react-native";
+import { useFocusEffect } from "@react-navigation/native";
 import { Session } from "@supabase/supabase-js";
 import useAxios, { RefetchFunction } from "axios-hooks";
 import { ParticipantKind } from "livekit-client";
-import * as React from "react";
-import { useEffect } from "react";
+import React, { useEffect } from "react";
 import { ActivityIndicator, Alert, Button, View } from "react-native";
 
 registerGlobals();
-
-const RoomConnecting = () => {
-  return <ActivityIndicator />;
-};
 
 const RoomStatus = ({
   connected,
@@ -36,38 +32,29 @@ const RoomStatus = ({
   const agentConnected = !!remote;
 
   useEffect(() => {
-    // If call connected and agent connected and first time this is true, then record that the agent connected at least once
     if (connected && agentConnected && !agentPreviouslyConnected) {
       setAgentPreviouslyConnected(true);
     }
 
-    // If the agent was previously connected and the call is connected, but there is no longer an agent connected then trigger
-    // the room to be destroyed and recreated (which will cause a new agent to be connected)
     if (agentPreviouslyConnected && connected && !agentConnected) {
       refetchToken();
     }
   }, [agentConnected, connected]);
 
   return (
-    <>
-      <View
-        style={{
-          marginBottom: 0,
-        }}
-      >
-        {connected && agentConnected === false ? (
-          <ActivityIndicator />
-        ) : (
-          <Button
-            title={"End Chat"}
-            onPress={() => {
-              setConnected(!connected);
-              segmentTrackEndChat();
-            }}
-          />
-        )}
-      </View>
-    </>
+    <View style={{ marginBottom: 0 }}>
+      {connected && agentConnected === false ? (
+        <ActivityIndicator />
+      ) : (
+        <Button
+          title={"End Chat"}
+          onPress={() => {
+            setConnected(false);
+            segmentTrackEndChat();
+          }}
+        />
+      )}
+    </View>
   );
 };
 
@@ -86,6 +73,16 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
     },
   });
 
+  useFocusEffect(
+    React.useCallback(() => {
+      return () => {
+        if (connected) {
+          setConnected(false);
+        }
+      };
+    }, [connected])
+  );
+
   useEffect(() => {
     if (error !== null) {
       console.error(error);
@@ -101,18 +98,19 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
       return;
     }
 
-    let start = async () => {
+    const startAudioSession = async () => {
       await AudioSession.startAudioSession();
     };
 
-    start();
+    startAudioSession();
+
     return () => {
       AudioSession.stopAudioSession();
     };
   }, [loading]);
 
   if (loading || token === null) {
-    return <></>;
+    return null;
   }
 
   return (
@@ -121,7 +119,7 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
         <Button
           title={"Start Chat"}
           onPress={() => {
-            setConnected(!connected);
+            setConnected(true);
             segmentTrackStartChat();
           }}
         />
@@ -130,7 +128,7 @@ export const VoiceInterface: React.FC<{ session: Session }> = ({ session }) => {
         <LiveKitRoom
           serverUrl={wsURL}
           token={token}
-          connect={token && connected}
+          connect={connected}
           audio={true}
         >
           <RoomStatus

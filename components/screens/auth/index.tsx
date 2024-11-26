@@ -1,5 +1,6 @@
 import { SignInWithApple } from "@/components/screens/auth/apple";
 import { VoiceKey } from "@/components/screens/signup/voice";
+import { SessionContext } from "@/context/SessionContext";
 import {
   segmentTrackLoadedAuthPage,
   segmentTrackSignedIn,
@@ -9,12 +10,11 @@ import { convertSQLToSettings } from "@/lib/utils";
 import { Settings } from "@prisma/client";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
 import { PostgrestError, Session, User } from "@supabase/supabase-js";
-import React, { useEffect } from "react";
+import React, { useEffect, useContext } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SignInWithGoogle } from "./google";
 
 type Props = {
-  setSession: React.Dispatch<React.SetStateAction<Session | null>>;
   setShowSignupFlow: React.Dispatch<React.SetStateAction<boolean>>;
 };
 
@@ -64,11 +64,13 @@ export const updateAudioMessages = async (
 export const sleep = (ms: number) =>
   new Promise((resolve) => setTimeout(resolve, ms));
 
-export default function Auth({ setSession, setShowSignupFlow }: Props) {
+export default function Auth({ setShowSignupFlow }: Props) {
   GoogleSignin.configure({
     scopes: [],
     iosClientId: process.env.EXPO_PUBLIC_GOOGLE_AUTH_CLIENT_ID,
   });
+
+  const { setSession } = useContext(SessionContext);
 
   const handleDidSignin = async (user: User, session: Session) => {
     setSession(session);
