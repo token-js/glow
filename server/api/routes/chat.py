@@ -12,7 +12,7 @@ from fastapi.responses import JSONResponse, StreamingResponse, Response
 from openai import AsyncStream, OpenAI
 from openai.types.chat import ChatCompletionChunk
 from fastapi import APIRouter, Depends, HTTPException
-from server.api.supabase import supabase
+from server.api.supabase import fetch_supabase
 from server.api.constants import SUPABASE_AUDIO_MESSAGES_BUCKET_NAME, LLM
 from server.api.utils import add_memories, authorize_user, get_stream_content
 from prisma import Prisma, enums, types
@@ -368,6 +368,8 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
         )
         file_name = f"{audio_id}.mp3"
         audio_bytes = b"".join(audio)
+
+        supabase = fetch_supabase()
         response = supabase.storage.from_(SUPABASE_AUDIO_MESSAGES_BUCKET_NAME).upload(
             file=audio_bytes,
             path=file_name,
@@ -480,6 +482,8 @@ async def fetch_audio(audioId: str, user=Depends(authorize_user)):
     await prisma.disconnect()
 
     audio_path = f"{audioId}.mp3"
+
+    supabase = fetch_supabase()
     audio = supabase.storage.from_(SUPABASE_AUDIO_MESSAGES_BUCKET_NAME).download(
         audio_path
     )
