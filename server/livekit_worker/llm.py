@@ -14,7 +14,7 @@ from livekit.plugins.openai.llm import _build_oai_context, LLMStream, ChatModels
 from livekit.agents import llm
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
 from server.agent.index import generate_response
-from server.api.routes.chat import final_processing_coroutine, stream_and_update_chat
+from server.api.routes.chat import stream_and_update_chat
 from typing import Any, Coroutine
 from dataclasses import dataclass
 from server.logger.index import fetch_logger
@@ -62,6 +62,7 @@ def convert_stream_to_coroutine(
             user_gender=user_gender,
             audio_messages_enabled=audio_messages_enabled,
             audio_id=None,
+            skip_final_processing=True,
         )
         it = iter(sync_gen)
 
