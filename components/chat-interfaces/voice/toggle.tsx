@@ -56,7 +56,7 @@ export const VoiceTextToggleButton: React.FC<Props> = ({ mode, onToggle }) => {
         <Animated.View
           style={[styles.iconContainer, { transform: [{ scale: voiceScale }] }]}
         >
-          <Icon name="mic" size={24} color="#000" />
+          <Icon name="phone" size={24} color="#000" />
         </Animated.View>
         <Animated.View
           style={[styles.iconContainer, { transform: [{ scale: textScale }] }]}

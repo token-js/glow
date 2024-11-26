@@ -79,7 +79,7 @@ export default function App() {
   } else {
     return (
       <View style={styles.container}>
-        <HomeScreen />
+        <HomeScreen settings={settings}/>
       </View>
     );
   }

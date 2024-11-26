@@ -8,7 +8,7 @@ import { supabase } from "@/lib/supabase";
 import { convertSQLToSettings } from "@/lib/utils";
 import { Settings } from "@prisma/client";
 import { GoogleSignin } from "@react-native-google-signin/google-signin";
-import { Session, User } from "@supabase/supabase-js";
+import { PostgrestError, Session, User } from "@supabase/supabase-js";
 import React, { useEffect } from "react";
 import { StyleSheet, Text, View } from "react-native";
 import { SignInWithGoogle } from "./google";
@@ -31,7 +31,7 @@ export const updateUserSettings = async (
   voice: string,
   agentName: string,
   userId: string
-) => {
+): Promise<{ settings: Settings | null; error: PostgrestError | null }> => {
   const { error, data } = await supabase
     .from("settings")
     .update({
@@ -45,6 +45,20 @@ export const updateUserSettings = async (
 
   const settings = convertSQLToSettings(data);
   return { settings, error };
+};
+
+export const updateAudioMessages = async (
+  userId: string,
+  enabled: boolean
+): Promise<void> => {
+  const { error } = await supabase
+    .from("settings")
+    .update({ audio_messages_enabled: enabled })
+    .eq("id", userId);
+
+  if (error) {
+    console.error("Error updating audio messages enabled:", error);
+  }
 };
 
 export const sleep = (ms: number) =>

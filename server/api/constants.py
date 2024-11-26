@@ -2,3 +2,5 @@ LLM = "gpt-4o-mini-2024-07-18"
 
 CONTEXT_WINDOWS = {"inflection_3_pi": 8000}
 CONTEXT_WINDOWS[LLM] = 128000
+
+SUPABASE_AUDIO_MESSAGES_BUCKET_NAME = "audio-messages"

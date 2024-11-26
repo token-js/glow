@@ -1,5 +1,6 @@
 import asyncio
 import os
+from typing import Union
 from mem0 import AsyncMemoryClient, MemoryClient
 from server.logger.index import fetch_logger
 from functools import partial
@@ -40,7 +41,7 @@ def unsafe_fetch_mem0():
         return None
 
 
-async def fetch_mem0() -> AsyncMemoryClient | None:
+async def fetch_mem0() -> Union[AsyncMemoryClient, None]:
     return await run_with_timeout(unsafe_fetch_mem0, timeout=1)
 
 

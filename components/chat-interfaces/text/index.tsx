@@ -1,4 +1,6 @@
 // components/chat-screen.tsx
+import { AudioMessage } from "@/components/audio-message";
+import { AudioPlayerProvider } from "@/components/audio-player-context";
 import { TypingIndicator } from "@/components/typing-indicator";
 import { Message, useChat } from "@/hooks/useChat";
 import { supabase } from "@/lib/supabase";
@@ -16,6 +18,7 @@ import { FlatList, StyleSheet, Text, View } from "react-native";
 type Props = {
   session: Session;
   userId: string;
+  audioMessagesEnabled: boolean
 };
 
 // Define the handle type for methods exposed via ref
@@ -24,9 +27,8 @@ export type ChatInterfaceHandle = {
   fetchListRef: () => React.RefObject<FlatList<any>>;
 };
 
-// Updated LoadingChatInterface component
 export const LoadingChatInterface = forwardRef<ChatInterfaceHandle, Props>(
-  ({ session, userId }, ref) => {
+  ({ session, userId, audioMessagesEnabled }, ref) => {
     const [chat, setChat] =
       useState<Database["public"]["Tables"]["chats"]["Row"]>();
     const [initialMessages, setInitialMessages] = useState<Message[]>([]);
@@ -74,6 +76,7 @@ export const LoadingChatInterface = forwardRef<ChatInterfaceHandle, Props>(
           initialMessages={initialMessages}
           session={session}
           chatId={chat.id}
+          audioMessagesEnabled={audioMessagesEnabled}
         />
       );
     }
@@ -86,69 +89,96 @@ type ChatInterfaceProps = Omit<Props, "userId"> & {
   chatId: string;
 };
 
-// Updated ChatInterface component
 export const ChatInterface = forwardRef<
   ChatInterfaceHandle,
   ChatInterfaceProps
->(({ flatListRef, initialMessages, session, chatId }, ref) => {
-  const {
-    messages: chatMessages,
-    isStreaming,
-    sendMessage,
-  } = useChat({
-    initialMessages,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${session.access_token}`,
-    },
-    chatId,
-  });
+>(
+  (
+    { flatListRef, initialMessages, session, chatId, audioMessagesEnabled },
+    ref
+  ) => {
+    const {
+      messages: chatMessages,
+      isStreaming,
+      sendMessage,
+      audioIdToAutoplay,
+    } = useChat({
+      initialMessages,
+      audioMessagesEnabled,
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      chatId,
+    });
 
-  useEffect(() => {
-    flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
-  }, [chatMessages.length]);
+    useEffect(() => {
+      flatListRef.current?.scrollToOffset({ animated: true, offset: 0 });
+    }, [chatMessages.length]);
 
-  // Expose sendMessage via ref
-  useImperativeHandle(ref, () => ({
-    sendMessage,
-    fetchListRef: () => flatListRef,
-  }));
+    useImperativeHandle(ref, () => ({
+      sendMessage,
+      fetchListRef: () => flatListRef,
+    }));
 
-  const renderItem = ({ item }: { item: Message }) => {
+    const renderItem = ({ item }: { item: Message }) => {
+      if (item.display_type === "audio") {
+        const autoplay = item.audio_id === audioIdToAutoplay;
+        return (
+          <View
+            style={[
+              styles.messageContainer,
+              item.role === "user" ? styles.userMessage : styles.botMessage,
+            ]}
+          >
+            {item.audio_id && (
+              <AudioMessage
+                audioId={item.audio_id}
+                autoplay={autoplay}
+                session={session}
+              />
+            )}
+          </View>
+        );
+      } else {
+        return (
+          <View
+            style={[
+              styles.messageContainer,
+              item.role === "user" ? styles.userMessage : styles.botMessage,
+            ]}
+          >
+            {item.content.length > 0 ? (
+              <Text style={styles.messageText}>{item.content}</Text>
+            ) : (
+              <TypingIndicator />
+            )}
+          </View>
+        );
+      }
+    };
+
     return (
-      <View
-        style={[
-          styles.messageContainer,
-          item.role === "user" ? styles.userMessage : styles.botMessage,
-        ]}
-      >
-        {item.content.length > 0 ? (
-          <Text style={styles.messageText}>{item.content}</Text>
-        ) : (
-          <TypingIndicator />
-        )}
-      </View>
+      <AudioPlayerProvider>
+        <FlatList
+          ref={flatListRef}
+          data={[...chatMessages].reverse()}
+          renderItem={renderItem}
+          keyExtractor={(item) => item.id.toString()}
+          contentContainerStyle={styles.messagesList}
+          inverted
+          keyboardShouldPersistTaps="handled"
+          style={{
+            width: "100%",
+            height: "100%",
+            flex: 1,
+            overflow: "scroll",
+          }}
+        />
+      </AudioPlayerProvider>
     );
-  };
-
-  return (
-    <FlatList
-      ref={flatListRef}
-      data={[...chatMessages].reverse()}
-      renderItem={renderItem}
-      keyExtractor={(item) => item.id.toString()}
-      contentContainerStyle={styles.messagesList}
-      inverted
-      keyboardShouldPersistTaps="handled"
-      style={{
-        width: "100%",
-        height: "100%",
-        flex: 1,
-        overflow: "scroll",
-      }}
-    />
-  );
-});
+  }
+);
 
 const styles = StyleSheet.create({
   chatContainer: {

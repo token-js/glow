@@ -3,6 +3,10 @@ import copy
 import os
 import zoneinfo
 import jwt
+
+from openai import AsyncOpenAI, OpenAI, Stream
+from openai.types.chat import ChatCompletionMessageParam
+from openai.types.chat import ChatCompletionChunk
 import asyncio
 import tiktoken
 
@@ -545,3 +549,13 @@ def time_ago(current_time: datetime, previous_time: datetime, time_zone: str) ->
                 return f"{years_difference} years ago"
 
     return ""
+
+
+def get_stream_content(stream: Stream[ChatCompletionChunk]) -> str:
+    agent_response = ""
+    for chunk in stream:
+        for choice in chunk.choices:
+            if choice.finish_reason != "stop":
+                content = choice.delta.content
+                agent_response += content
+    return agent_response

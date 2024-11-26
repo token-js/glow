@@ -1,23 +1,26 @@
+import base64
 import os
 import threading
-from typing import Any, List
+import uuid
+import json
+import asyncio
+from typing import Any, List, Optional
+from elevenlabs import ElevenLabs, VoiceSettings
 import httpx
 from pydantic import BaseModel
-from fastapi.responses import StreamingResponse
-from openai import OpenAI
-from pydantic import BaseModel
-from typing import List
+from fastapi.responses import JSONResponse, StreamingResponse, Response
+from openai import AsyncStream, OpenAI
+from openai.types.chat import ChatCompletionChunk
 from fastapi import APIRouter, Depends, HTTPException
-from server.api.constants import LLM
-from server.api.utils import add_memories, authorize_user
+from server.api.supabase import supabase
+from server.api.constants import SUPABASE_AUDIO_MESSAGES_BUCKET_NAME, LLM
+from server.api.utils import add_memories, authorize_user, get_stream_content
 from prisma import Prisma, enums, types
-from pydantic import BaseModel
 from datetime import datetime
 from server.api.analytics import track_sent_message
-from fastapi.responses import JSONResponse
 from server.agent.index import generate_response
-import asyncio
 from server.logger.index import fetch_logger
+from server.livekit_worker.voices import VoiceSettingMapping
 
 logger = fetch_logger()
 
@@ -46,6 +49,7 @@ class Request(BaseModel):
     messages: List[ClientMessage]
     chat_id: str
     timezone: str
+    audio_messages_enabled: bool
 
 
 router = APIRouter()
@@ -83,6 +87,8 @@ async def call_update_chat(
     user_message_timestamp: datetime,
     agent_message_timestamp: datetime,
     chat_id: str,
+    audio_messages_enabled: bool,
+    audio_id: Optional[str],
 ):
     new_user_message = next(msg for msg in reversed(messages) if msg["role"] == "user")
     new_user_message = message_to_fixed_string_content(new_user_message)["content"]
@@ -93,7 +99,10 @@ async def call_update_chat(
         "user_message_timestamp": user_message_timestamp.timestamp(),
         "agent_message_timestamp": agent_message_timestamp.timestamp(),
         "chat_id": chat_id,
+        "audio_messages_enabled": audio_messages_enabled,
+        "audio_id": audio_id,
     }
+
     headers = {
         "Content-Type": "application/json",
         "Authorization": f"Bearer {os.environ.get('CRON_SECRET')}",
@@ -117,6 +126,9 @@ def stream_and_update_chat(
     ai_first_name: str,
     user_first_name: str,
     user_gender: str,
+    audio_messages_enabled: bool,
+    audio_id: Optional[str] = None,
+    skip_final_processing: Optional[bool] = False,
 ):
     user_message_timestamp = datetime.now()
     client = OpenAI(
@@ -166,20 +178,23 @@ def stream_and_update_chat(
     #    processing logic to also finish quickly. (I.e. all of the chunks are yielded).
     # 2. While the voice is speaking, synchronous tasks such as analytics calls execute, causing the
     #    voice response to halt until the synchronous task ends.
-    thread = threading.Thread(
-        target=lambda: asyncio.run(
-            final_processing_coroutine(
-                messages=messages,
-                agent_response=agent_response,
-                chat_id=chat_id,
-                user_id=user_id,
-                chat_type=chat_type,
-                user_message_timestamp=user_message_timestamp,
-            )
-        ),
-        daemon=True,
-    )
-    thread.start()
+    if not skip_final_processing:
+        thread = threading.Thread(
+            target=lambda: asyncio.run(
+                final_processing_coroutine(
+                    messages=messages,
+                    agent_response=agent_response,
+                    chat_id=chat_id,
+                    user_id=user_id,
+                    chat_type=chat_type,
+                    user_message_timestamp=user_message_timestamp,
+                    audio_messages_enabled=audio_messages_enabled,
+                    audio_id=audio_id,
+                )
+            ),
+            daemon=True,
+        )
+        thread.start()
 
 
 async def final_processing_coroutine(
@@ -189,6 +204,8 @@ async def final_processing_coroutine(
     user_id: str,
     chat_type: str,
     user_message_timestamp: datetime,
+    audio_messages_enabled: bool,
+    audio_id: Optional[str],
 ) -> None:
     agent_message_timestamp = datetime.now()
 
@@ -198,6 +215,8 @@ async def final_processing_coroutine(
         chat_id=chat_id,
         user_message_timestamp=user_message_timestamp,
         agent_message_timestamp=agent_message_timestamp,
+        audio_messages_enabled=audio_messages_enabled,
+        audio_id=audio_id,
     )
 
     await add_memories(
@@ -221,6 +240,8 @@ def stream_text(
     ai_first_name: str,
     user_first_name: str,
     user_gender: str,
+    audio_messages_enabled: bool,
+    audio_id: Optional[str],
 ):
     stream = stream_and_update_chat(
         messages=messages,
@@ -231,6 +252,8 @@ def stream_text(
         ai_first_name=ai_first_name,
         user_first_name=user_first_name,
         user_gender=user_gender,
+        audio_messages_enabled=audio_messages_enabled,
+        audio_id=audio_id,
     )
     for chunk in stream:
         for choice in chunk.choices:
@@ -247,6 +270,7 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
     user_id = user["sub"]
     chat_id = request.chat_id
     timezone = request.timezone
+    audio_messages_enabled = request.audio_messages_enabled
 
     prisma = Prisma()
     await prisma.connect()
@@ -273,8 +297,6 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
         request.messages
     ) + convert_to_openai_messages([new_user_message])
 
-    await prisma.disconnect()
-
     ai_first_name = settings.agentName
     user_first_name = settings.name
     user_gender = settings.gender
@@ -285,18 +307,104 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
     chat_history = [
         message_to_fixed_string_content(element) for element in openai_messages
     ]
-    response = StreamingResponse(
-        stream_text(
-            chat_history,
-            chat_id,
-            user_id,
-            timezone,
-            ai_first_name,
-            user_first_name,
-            user_gender,
-        ),
-        media_type="text/event-stream",
-    )
+    audio_id = str(uuid.uuid4()) if audio_messages_enabled else None
+
+    response = None
+    if audio_messages_enabled:
+        user_message_timestamp = datetime.now()
+
+        # Define a synchronous function to run in a separate thread. Necessary because
+        # `stream_and_update_chat` contains an `asyncio.run` call, which causes an error if executed
+        # in the current thread.
+        def sync_function():
+            stream = stream_and_update_chat(
+                messages=chat_history,
+                chat_id=chat_id,
+                user_id=user_id,
+                chat_type="text",
+                timezone=timezone,
+                ai_first_name=ai_first_name,
+                user_first_name=user_first_name,
+                user_gender=user_gender,
+                audio_messages_enabled=audio_messages_enabled,
+                audio_id=audio_id,
+                skip_final_processing=True,
+            )
+            agent_response_text = get_stream_content(stream)
+            return agent_response_text
+
+        # Run the synchronous function in a separate thread
+        agent_response = await asyncio.to_thread(sync_function)
+
+        # Run the final processing logic outside of `stream_and_update_chat` because including it in
+        # `sync_function` will cause `final_processing_coroutine` to fully execute before we can
+        # continue with this logic, which adds significant latency to this call.
+        asyncio.create_task(
+            final_processing_coroutine(
+                messages=chat_history,
+                agent_response=agent_response,
+                chat_id=chat_id,
+                user_id=user_id,
+                chat_type="type",
+                user_message_timestamp=user_message_timestamp,
+                audio_messages_enabled=audio_messages_enabled,
+                audio_id=audio_id,
+            )
+        )
+
+        voice_settings = VoiceSettingMapping[settings.voice]
+
+        elevenlabs = ElevenLabs(api_key=os.environ.get("ELEVEN_LABS_API_KEY"))
+        audio = elevenlabs.generate(
+            text=agent_response,
+            model=voice_settings.model,
+            voice=voice_settings.voice_id,
+            voice_settings=VoiceSettings(
+                stability=voice_settings.stability,
+                similarity_boost=voice_settings.similarity,
+                style=voice_settings.style,
+                use_speaker_boost=voice_settings.speaker_boost,
+            ),
+        )
+        file_name = f"{audio_id}.mp3"
+        audio_bytes = b"".join(audio)
+        response = supabase.storage.from_(SUPABASE_AUDIO_MESSAGES_BUCKET_NAME).upload(
+            file=audio_bytes,
+            path=file_name,
+            file_options={"content-type": "audio/mpeg"},
+        )
+        if response.is_error:
+            raise HTTPException(
+                status_code=405, detail=f"Audio upload failed: {response.content}"
+            )
+
+        audio_base64 = base64.b64encode(audio_bytes).decode("utf-8")
+
+        # Create JSON response
+        response_data = {
+            "text": agent_response,
+            "audioId": audio_id,
+            "audioBase64": audio_base64,
+        }
+        response = JSONResponse(content=response_data)
+    else:
+        response = StreamingResponse(
+            stream_text(
+                chat_history,
+                chat_id,
+                user_id,
+                timezone,
+                ai_first_name,
+                user_first_name,
+                user_gender,
+                audio_messages_enabled,
+                audio_id,
+            ),
+            media_type="text/event-stream",
+        )
+
+    await prisma.disconnect()
+
     return response
 
 
@@ -306,6 +414,8 @@ class UpdateChatRequest(BaseModel):
     new_agent_message: str
     agent_message_timestamp: float
     chat_id: str
+    audio_messages_enabled: bool
+    audio_id: Optional[str] = None
 
 
 @router.post("/api/updateChat")
@@ -314,10 +424,11 @@ async def handle_update_chat(request: UpdateChatRequest):
     await prisma.connect()
 
     async with prisma.tx():
-        # Get the last user message (pop if the last message is a system message)
         new_user_message = request.new_user_message
         agent_response = request.new_agent_message
         chat_id = request.chat_id
+        audio_id = request.audio_id
+        audio_messages_enabled = request.audio_messages_enabled
 
         # Create new user chat message
         await prisma.chatmessages.create(
@@ -326,16 +437,20 @@ async def handle_update_chat(request: UpdateChatRequest):
                 role=enums.OpenAIRole.user,
                 content=new_user_message,
                 created=datetime.fromtimestamp(request.user_message_timestamp),
+                displayType="text",
             )
         )
 
-        # Create new agent chat message
+        display_type = "audio" if audio_messages_enabled else "text"
+
         await prisma.chatmessages.create(
             data=types.ChatMessagesCreateInput(
                 chatId=chat_id,
                 role=enums.OpenAIRole.assistant,
                 content=agent_response,
                 created=datetime.fromtimestamp(request.agent_message_timestamp),
+                displayType=display_type,
+                audioId=audio_id,
             )
         )
 
@@ -345,6 +460,32 @@ async def handle_update_chat(request: UpdateChatRequest):
         )
 
     await prisma.disconnect()
+
+
+@router.get("/api/fetchAudio")
+async def fetch_audio(audioId: str, user=Depends(authorize_user)):
+    user_id = user["sub"]
+    prisma = Prisma()
+    await prisma.connect()
+
+    # Find the chat message with the given audioId and ensure it belongs to the authorized user
+    message = await prisma.chatmessages.find_first(
+        where={"audioId": audioId, "chat": {"is": {"userId": user_id}}}
+    )
+
+    if not message:
+        await prisma.disconnect()
+        raise HTTPException(status_code=404, detail="Audio not found or unauthorized")
+
+    await prisma.disconnect()
+
+    audio_path = f"{audioId}.mp3"
+    audio = supabase.storage.from_(SUPABASE_AUDIO_MESSAGES_BUCKET_NAME).download(
+        audio_path
+    )
+
+    # Return the audio as a streaming response
+    return Response(content=audio, media_type="audio/mpeg")
 
 
 @router.get("/api/health")
