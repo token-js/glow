@@ -4,23 +4,31 @@ import {
 } from "@/components/screens/auth";
 import { AINameInput } from "@/components/screens/signup/aiName";
 import { VoiceKey, VoicePicker } from "@/components/screens/signup/voice";
+import { AppContext } from "@/context";
 import { signupStyles, theme } from "@/lib/style";
 import { supabase } from "@/lib/supabase";
 import { Settings } from "@prisma/client";
 import { Session } from "@supabase/supabase-js";
 import { Stack, useRouter } from "expo-router";
-import React, { useEffect, useState } from "react";
+import React, { useContext, useEffect, useState } from "react";
 import { Alert, StyleSheet, Text, TouchableOpacity, View } from "react-native";
+import Icon from "react-native-vector-icons/Ionicons";
 
 export const SettingsScreen = () => {
+  const { refetchToken } = useContext(AppContext);
   const router = useRouter();
   const [voice, setVoice] = useState<VoiceKey | null>(null);
   const [aiName, setAIName] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(false);
   const [settings, setSettings] = useState<Settings | null>();
+  const [didSaveSettings, setDidSaveSettings] = useState<boolean>(true);
   const [session, setSession] = useState<Session | null>();
 
-  const canSave = settings && session && aiName !== "" && voice !== null;
+  useEffect(() => {
+    if (settings) {
+      setDidSaveSettings(false);
+    }
+  }, [aiName, voice]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session } }) => {
@@ -42,13 +50,7 @@ export const SettingsScreen = () => {
   }, []);
 
   const handleSaveSettings = async () => {
-    if (!settings || !session) {
-      return;
-    }
-
-    if (!canSave) {
-      return;
-    }
+    if (!settings || !session) return;
 
     setLoading(true);
 
@@ -60,24 +62,52 @@ export const SettingsScreen = () => {
       session.user.id!
     );
 
-    setSettings(newSettings);
+    if (error) {
+      Alert.alert("Error", "Failed to save settings");
+    } else {
+      setSettings(newSettings);
+      setDidSaveSettings(true);
+    }
+
     setLoading(false);
   };
 
-  const handleLogout = async () => {
-    supabase.auth.onAuthStateChange(async () => {
-      router.replace("/");
-    });
-
-    try {
-      await supabase.auth.signOut();
-    } catch (error: any) {
+  const handleBack = () => {
+    if (didSaveSettings === false) {
       Alert.alert(
-        "Logout Failed",
-        "An error occurred while trying to log out. Please try again."
+        "Unsaved Changes",
+        "You have unsaved changes. Do you want to save them before going back?",
+        [
+          { text: "Cancel", style: "cancel" },
+          {
+            text: "Save",
+            onPress: async () => {
+              await handleSaveSettings();
+              navigateBack(true);
+            },
+          },
+          {
+            text: "Discard",
+            style: "destructive",
+            onPress: async () => {
+              navigateBack(false);
+            },
+          },
+        ]
       );
-      console.error("Logout error:", error.message);
+    } else {
+      navigateBack(didSaveSettings);
     }
+  };
+
+  const navigateBack = async (refresh: boolean) => {
+    if (refresh) {
+      await refetchToken();
+    }
+
+    router.replace({
+      pathname: "/",
+    });
   };
 
   return (
@@ -87,94 +117,50 @@ export const SettingsScreen = () => {
           headerShown: true,
           title: "Settings",
           headerBackTitle: "Back",
+          headerLeft: () => (
+            <TouchableOpacity onPress={handleBack} style={styles.backButton}>
+              <Icon name="arrow-back" size={28} color="blue" />
+              <Text style={styles.backText}>Back</Text>
+            </TouchableOpacity>
+          ),
         }}
       />
-      <View
-        style={[
-          styles.container,
-          {
-            justifyContent: "space-between",
-          },
-        ]}
-      >
-        <View
-          style={{
-            width: "100%",
-          }}
-        >
-          <Text
-            style={[
-              theme.title,
-              {
-                marginBottom: 10,
-              },
-            ]}
-          >
+      <View style={styles.container}>
+        <View>
+          <Text style={[theme.title, { marginBottom: 10 }]}>
             Companion Voice
           </Text>
           <VoicePicker voice={voice} setVoice={setVoice} />
-          <Text
-            style={[
-              theme.title,
-              {
-                marginBottom: 10,
-              },
-            ]}
-          >
+          <Text style={[theme.title, { marginBottom: 10 }]}>
             Companion Name
           </Text>
-          <View
-            style={{
-              marginBottom: 30,
-            }}
-          >
-            <AINameInput
-              aiName={aiName}
-              setAIName={setAIName}
-              textAlign="left"
-            />
-          </View>
+          <AINameInput aiName={aiName} setAIName={setAIName} textAlign="left" />
           <TouchableOpacity
             style={{
               backgroundColor: "#007BFF",
               paddingVertical: 14,
-              paddingHorizontal: 40,
               borderRadius: 25,
               alignItems: "center",
-              marginBottom: 20,
-              width: "auto",
-              opacity: canSave ? 1 : 0.5, // Adjust opacity based on canSave
+              opacity: !didSaveSettings ? 1 : 0.5,
+              marginTop: 20,
             }}
             onPress={handleSaveSettings}
-            accessible={true}
-            disabled={!canSave}
-            accessibilityLabel="Confirm"
+            disabled={didSaveSettings}
           >
             <Text style={signupStyles.confirmButtonText}>Save Settings</Text>
           </TouchableOpacity>
         </View>
-
         <TouchableOpacity
           style={{
-            backgroundColor: "transparent",
-            paddingVertical: 14,
-            paddingHorizontal: 40,
-            borderRadius: 25,
+            marginTop: 30,
             alignItems: "center",
-            width: "100%",
           }}
-          onPress={handleLogout}
-          accessible={true}
-          accessibilityLabel="Confirm"
+          onPress={async () => {
+            await supabase.auth.signOut();
+            router.replace("/");
+          }}
         >
-          <Text
-            style={{
-              color: "red",
-              fontSize: 16,
-            }}
-          >
-            Logout
-          </Text>
+          <Text style={{ color: "red" }}>Logout</Text>
         </TouchableOpacity>
       </View>
     </>
@@ -184,16 +170,17 @@ export const SettingsScreen = () => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: "flex-start",
-    justifyContent: "flex-start",
     padding: 20,
+    justifyContent: "space-between",
   },
-  title: {
-    fontSize: 24,
-    marginBottom: 20,
+  backButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 5,
   },
-  logoutButton: {
-    marginTop: 30,
-    width: "80%",
+  backText: {
+    marginLeft: 5,
+    fontSize: 18,
+    color: "blue",
   },
 });
