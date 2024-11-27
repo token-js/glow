@@ -1,8 +1,10 @@
 import { LoadingChatInterface } from "@/components/chat-interfaces/text";
 import { VoiceInterface } from "@/components/chat-interfaces/voice";
 import { VoiceTextToggleButton } from "@/components/chat-interfaces/voice/toggle";
+import { updateAudioMessages } from "@/components/screens/auth";
 import { useSupabaseSession } from "@/lib/hook";
 import { Ionicons } from "@expo/vector-icons";
+import { Settings } from "@prisma/client";
 import { useRouter } from "expo-router";
 import React, { useEffect, useRef, useState } from "react";
 import {
@@ -28,7 +30,9 @@ const easingMapping: Record<KeyboardEasing, EasingFunction> = {
   linear: Easing.linear,
 };
 
-export const HomeScreen: React.FC = () => {
+export const HomeScreen: React.FC<{ settings: Settings | null }> = ({
+  settings,
+}) => {
   const [mode, setMode] = useState<"text" | "voice">("voice");
   const router = useRouter();
   const onToggle = () => setMode(mode === "text" ? "voice" : "text");
@@ -42,7 +46,9 @@ export const HomeScreen: React.FC = () => {
   ).current;
   const animatedPaddingBottom = useRef(new Animated.Value(0)).current;
   const chatRef = useRef<any>();
-
+  const [audioMessagesEnabled, setAudioMessagesEnabled] = useState<boolean>(
+    settings?.audioMessagesEnabled ?? false
+  );
   useEffect(() => {
     let keyboardShowListener: any;
     let keyboardHideListener: any;
@@ -90,6 +96,16 @@ export const HomeScreen: React.FC = () => {
     }).start();
   };
 
+  const handleAudioMessagesToggled = async (): Promise<void> => {
+    if (session.session === null) {
+      console.error("Session is null.");
+    } else {
+      const enabled = !audioMessagesEnabled
+      setAudioMessagesEnabled(enabled);
+      await updateAudioMessages(session.session.user.id, enabled);
+    }
+  };
+
   const handleKeyboardHide = (event: any) => {
     const { duration, easing } = event;
     const easingFunction =
@@ -132,9 +148,30 @@ export const HomeScreen: React.FC = () => {
           <>
             <View style={styles.header}>
               <View style={{ flex: 1 }} />
-              <TouchableOpacity onPress={() => router.push("/settings")}>
-                <Ionicons name="settings-outline" size={24} color="black" />
-              </TouchableOpacity>
+              <View style={{ flexDirection: "row", alignItems: "center" }}>
+                {mode === "text" && (
+                  <TouchableOpacity
+                    onPress={handleAudioMessagesToggled}
+                    style={[styles.iconButton, { marginRight: 10 }]}
+                  >
+                    <Ionicons
+                      name={
+                        audioMessagesEnabled
+                          ? "volume-high-outline"
+                          : "volume-mute-outline"
+                      }
+                      size={30}
+                      color="black"
+                    />
+                  </TouchableOpacity>
+                )}
+                <TouchableOpacity
+                  onPress={() => router.push("/settings")}
+                  style={styles.iconButton}
+                >
+                  <Ionicons name="settings-outline" size={30} color="black" />
+                </TouchableOpacity>
+              </View>
             </View>
 
             {session.session && (
@@ -146,6 +183,7 @@ export const HomeScreen: React.FC = () => {
                     ref={chatRef}
                     session={session.session}
                     userId={session.session.user.id}
+                    audioMessagesEnabled={audioMessagesEnabled}
                   />
                 )}
               </View>
@@ -217,6 +255,16 @@ const styles = StyleSheet.create({
     right: 0,
     top: 0,
     bottom: 0,
+  },
+  iconButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "white",
+    borderColor: "black",
+    borderWidth: 1,
+    justifyContent: "center",
+    alignItems: "center",
   },
 });
 

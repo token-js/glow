@@ -1,14 +1,26 @@
 import os
+from typing import Union
 import cuid
 from datetime import datetime
 from supabase import create_client, Client
 
-url: str = os.environ.get("EXPO_PUBLIC_SUPABASE_URL")
-key: str = os.environ.get("SUPABASE_SECRET_KEY")
-supabase: Client = create_client(url, key)
+supabase: Union[Client, None] = None
+
+
+def fetch_supabase():
+    global supabase
+
+    if supabase is None:
+        url: str = os.environ.get("EXPO_PUBLIC_SUPABASE_URL")
+        key: str = os.environ.get("SUPABASE_SECRET_KEY")
+        supabase = create_client(url, key)
+
+    return supabase
 
 
 def fetch_user_profile(user_id: str):
+    fetch_supabase()
+
     user_profile = (
         supabase.table("user_profiles")
         .select("*, settings(*)")
@@ -23,4 +35,6 @@ def fetch_user_profile(user_id: str):
 
 
 def fetch_settings(user_id: str):
+    fetch_supabase()
+
     return supabase.table("settings").select("*").eq("id", user_id).execute()

@@ -44,25 +44,31 @@ export type Database = {
       }
       chat_messages: {
         Row: {
+          audio_id: string | null
           chat_id: string
           content: string
           created: string
+          display_type: Database["public"]["Enums"]["DisplayType"]
           id: string
           modified: string
           role: Database["public"]["Enums"]["OpenAIRole"]
         }
         Insert: {
+          audio_id?: string | null
           chat_id: string
           content: string
           created?: string
+          display_type: Database["public"]["Enums"]["DisplayType"]
           id: string
           modified: string
           role: Database["public"]["Enums"]["OpenAIRole"]
         }
         Update: {
+          audio_id?: string | null
           chat_id?: string
           content?: string
           created?: string
+          display_type?: Database["public"]["Enums"]["DisplayType"]
           id?: string
           modified?: string
           role?: Database["public"]["Enums"]["OpenAIRole"]
@@ -111,21 +117,24 @@ export type Database = {
       }
       settings: {
         Row: {
-          ai_name: string | null
+          agent_name: string | null
+          audio_messages_enabled: boolean
           gender: Database["public"]["Enums"]["Gender"] | null
           id: string
           name: string | null
           voice: Database["public"]["Enums"]["Voice"] | null
         }
         Insert: {
-          ai_name?: string | null
+          agent_name?: string | null
+          audio_messages_enabled?: boolean
           gender?: Database["public"]["Enums"]["Gender"] | null
           id: string
           name?: string | null
           voice?: Database["public"]["Enums"]["Voice"] | null
         }
         Update: {
-          ai_name?: string | null
+          agent_name?: string | null
+          audio_messages_enabled?: boolean
           gender?: Database["public"]["Enums"]["Gender"] | null
           id?: string
           name?: string | null
@@ -185,6 +194,7 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
+      DisplayType: "text" | "audio"
       Gender: "male" | "female" | "nonbinary"
       OpenAIRole: "system" | "user" | "assistant"
       Voice:
