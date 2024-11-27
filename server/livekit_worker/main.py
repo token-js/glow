@@ -59,7 +59,7 @@ def fetch_initial_chat_message(user_name: str):
     return f"""Hey, great to meet you, {user_name}! How's it going?"""
 
 
-async def get_chat(user_id: str, user_name: str, agent_name: str):
+async def get_chat(user_id: str, user_name: str, agent_name: str, display_type: str):
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
         raise Exception("DATABASE_URL environment variable not set")
@@ -110,8 +110,8 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
             modified = datetime.now()
             await conn.fetch(
                 """
-                INSERT INTO chat_messages (id, chat_id, content, role, created, modified)
-                VALUES ($1, $2, $3, $4, $5, $6);
+                INSERT INTO chat_messages (id, chat_id, content, role, created, modified, display_type)
+                VALUES ($1, $2, $3, $4, $5, $6, $7);
                 """,
                 message_id,
                 chat_id,
@@ -119,6 +119,7 @@ async def get_chat(user_id: str, user_name: str, agent_name: str):
                 message_role,
                 created,
                 modified,
+                display_type,
             )
             send_first_chat_message = True
 
@@ -159,7 +160,7 @@ async def entrypoint(ctx: JobContext):
 
     # Fetch chat data asynchronously
     chat, send_first_chat_message, first_chat_message = await get_chat(
-        user_id=user_id, agent_name=agent_name, user_name=name
+        user_id=user_id, agent_name=agent_name, user_name=name, display_type="text"
     )
 
     chat_messages = [
@@ -203,134 +204,10 @@ async def entrypoint(ctx: JobContext):
         chat_ctx=initial_ctx,
     )
 
-    # Initialize the filler sound player
-    filler_sound_path = os.path.join(
-        os.path.dirname(os.path.dirname(os.path.dirname(__file__))),
-        "assets",
-        "filler_sound.wav",
-    )
-    filler_sound_player = FillerSoundPlayer(
-        room=ctx.room, filler_sound_path=filler_sound_path
-    )
-    await filler_sound_player.initialize()
-
     assistant.start(ctx.room, participant)
 
     if send_first_chat_message:
         await assistant.say(first_chat_message, allow_interruptions=True)
-
-
-class FillerSoundPlayer:
-    def __init__(self, room, filler_sound_path):
-        self.room = room
-        self.filler_sound_path = filler_sound_path
-        self.audio_source = rtc.AudioSource(
-            sample_rate=48000,
-            num_channels=1,
-            queue_size_ms=1000,
-        )
-        self.audio_track = rtc.LocalAudioTrack.create_audio_track(
-            "filler_sound", self.audio_source
-        )
-        self.is_playing = False
-        self.play_task = None
-        self.publication = None  # Store the publication here
-        self.lock = asyncio.Lock()
-        self.frames = None  # Preloaded frames
-
-    async def initialize(self):
-        # Publish the audio track once
-        self.publication = await self.room.local_participant.publish_track(
-            self.audio_track
-        )
-        logger.info("Filler sound track published.")
-
-    async def start(self):
-        async with self.lock:
-            if not self.is_playing:
-                self.is_playing = True
-                if self.play_task is None or self.play_task.done():
-                    self.play_task = asyncio.create_task(self._play_filler_sound())
-                logger.info("Filler sound started.")
-
-    async def stop(self):
-        async with self.lock:
-            if self.is_playing:
-                self.is_playing = False
-                # Clear the audio queue to stop playback immediately
-                self.audio_source.clear_queue()
-                logger.info("Filler sound stopped.")
-
-    async def close(self):
-        # Call this when shutting down to unpublish the track
-        async with self.lock:
-            if self.publication is not None:
-                try:
-                    await self.room.local_participant.unpublish_track(
-                        self.publication.sid
-                    )
-                    logger.info("Filler sound track unpublished.")
-                except Exception as e:
-                    logger.error(f"Error unpublishing track: {e}")
-                self.publication = None
-
-    async def _play_filler_sound(self):
-        if self.frames is None:
-            # Preload frames
-            audio = AudioSegment.from_file(self.filler_sound_path)
-            if audio.channels != 1:
-                audio = audio.set_channels(1)
-            if audio.frame_rate != 48000:
-                audio = audio.set_frame_rate(48000)
-            if audio.sample_width != 2:
-                audio = audio.set_sample_width(2)
-
-            audio_data = audio.raw_data
-            sample_rate = audio.frame_rate
-            num_channels = audio.channels
-            sample_width = audio.sample_width
-            frames_per_buffer = int(sample_rate * 0.02)  # 20ms frames
-            frame_size = frames_per_buffer * sample_width * num_channels
-
-            # Prepare frames
-            self.frames = []
-            position = 0
-            while position + frame_size <= len(audio_data):
-                frame_data = audio_data[position : position + frame_size]
-                position += frame_size
-                samples_per_channel = len(frame_data) // (num_channels * sample_width)
-                frame = rtc.AudioFrame(
-                    data=frame_data,
-                    sample_rate=sample_rate,
-                    num_channels=num_channels,
-                    samples_per_channel=samples_per_channel,
-                )
-                self.frames.append(frame)
-
-            # Include any remaining data
-            if position < len(audio_data):
-                frame_data = audio_data[position:]
-                samples_per_channel = len(frame_data) // (num_channels * sample_width)
-                frame = rtc.AudioFrame(
-                    data=frame_data,
-                    sample_rate=sample_rate,
-                    num_channels=num_channels,
-                    samples_per_channel=samples_per_channel,
-                )
-                self.frames.append(frame)
-
-        # Initialize frame index
-        frame_index = 0
-
-        while True:
-            if self.is_playing:
-                # Feed frames continuously
-                frame = self.frames[frame_index]
-                await self.audio_source.capture_frame(frame)
-                frame_index = (frame_index + 1) % len(self.frames)
-            else:
-                # Sleep briefly to prevent CPU overutilization
-                await asyncio.sleep(0.01)
 
 
 if __name__ == "__main__":

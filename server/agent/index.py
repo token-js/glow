@@ -1,6 +1,5 @@
 import asyncio
-from openai.types.chat import ChatCompletionMessageParam
-from typing import List
+from openai.types.chat import ChatCompletionMessageParam, ChatCompletionChunk
 from openai import AsyncOpenAI
 from typing import List
 

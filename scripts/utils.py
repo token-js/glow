@@ -3,7 +3,8 @@ import json
 import os
 
 from dotenv import load_dotenv
-from openai import AsyncOpenAI
+from openai import AsyncOpenAI, AsyncStream, Stream
+from openai.types.chat import ChatCompletionChunk
 
 from server.api.utils import (
     add_memories,

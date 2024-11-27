@@ -1,7 +1,7 @@
 import { updateUserSettings } from "@/components/screens/auth";
 import { segmentTrackFinishedSignup } from "@/lib/analytics";
 import { signupStyles } from "@/lib/style";
-import { $Enums } from "@prisma/client";
+import { $Enums, Settings } from "@prisma/client";
 import { Session } from "@supabase/supabase-js";
 import React, { ReactElement, useEffect, useRef, useState } from "react";
 import { Animated, Easing, View } from "react-native";
@@ -32,13 +32,7 @@ type Props = {
   setShowSignupFlow: React.Dispatch<React.SetStateAction<boolean>>;
   setSettings: React.Dispatch<
     React.SetStateAction<
-      | {
-          id: string;
-          name: string | null;
-          agentName: string | null;
-          gender: $Enums.Gender | null;
-          voice: $Enums.Voice | null;
-        }
+      | Settings
       | null
       | undefined
     >

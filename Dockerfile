@@ -19,7 +19,6 @@ RUN apt-get update && apt-get install -y \
 # Copy only the package.json, package-lock.json, and prisma schema to cache dependencies
 COPY package.json package-lock.json /app/
 COPY prisma/schema.prisma prisma/schema.prisma
-COPY assets/filler_sound.wav /app/assets/
 
 # Copy the server directory (assuming it contains requirements.txt)
 COPY /server /app/server/

@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+from datetime import datetime
 import os
 import asyncio
+import threading
 from prisma import Prisma
 from dataclasses import dataclass
 from typing import Any, MutableSet
@@ -11,7 +13,8 @@ from openai.types.chat import ChatCompletionChunk
 from livekit.plugins.openai.llm import _build_oai_context, LLMStream, ChatModels
 from livekit.agents import llm
 from openai.types.chat.chat_completion_chunk import ChatCompletionChunk
-from server.api.routes.chat import stream_and_update_chat
+from server.agent.index import generate_response
+from server.api.routes.chat import final_processing_coroutine, stream_and_update_chat
 from typing import Any, Coroutine
 from dataclasses import dataclass
 from server.logger.index import fetch_logger
@@ -45,6 +48,7 @@ def convert_stream_to_coroutine(
     ai_first_name: str,
     user_first_name: str,
     user_gender: str,
+    audio_messages_enabled: bool,
 ) -> Coroutine[Any, Any, "AsyncStream[ChatCompletionChunk]"]:
     async def wrapper():
         sync_gen = stream_and_update_chat(
@@ -56,6 +60,8 @@ def convert_stream_to_coroutine(
             ai_first_name=ai_first_name,
             user_first_name=user_first_name,
             user_gender=user_gender,
+            audio_messages_enabled=audio_messages_enabled,
+            audio_id=None,
         )
         it = iter(sync_gen)
 
@@ -136,6 +142,7 @@ class LLM(llm.LLM):
             ai_first_name=self._opts.agent_name,
             user_first_name=self._opts.user_name,
             user_gender=self._opts.user_gender,
+            audio_messages_enabled=False,
         )
 
         return LLMStream(oai_stream=stream, chat_ctx=chat_ctx, fnc_ctx=fnc_ctx)
