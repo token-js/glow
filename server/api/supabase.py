@@ -3,11 +3,13 @@ import cuid
 from datetime import datetime
 from supabase import create_client, Client
 
-supabase: Client | None
+supabase: Client | None = None
 
 
 def fetch_supabase():
-    if supabase == None:
+    global supabase
+
+    if supabase is None:
         url: str = os.environ.get("EXPO_PUBLIC_SUPABASE_URL")
         key: str = os.environ.get("SUPABASE_SECRET_KEY")
         supabase = create_client(url, key)
