@@ -16,7 +16,8 @@ from server.api.supabase import fetch_supabase
 from server.api.constants import SUPABASE_AUDIO_MESSAGES_BUCKET_NAME, LLM
 from server.api.utils import add_memories, authorize_user, get_stream_content
 from prisma import Prisma, enums, types
-from datetime import datetime
+from pydantic import BaseModel
+from datetime import datetime, timedelta
 from server.api.analytics import track_sent_message
 from server.agent.index import generate_response
 from server.logger.index import fetch_logger
@@ -92,8 +93,14 @@ async def call_update_chat(
     audio_messages_enabled: bool,
     audio_id: Optional[str],
 ):
-    new_user_message = next(msg for msg in reversed(messages) if msg["role"] == "user")
-    new_user_message = message_to_fixed_string_content(new_user_message)["content"]
+    # We default the new_user_message to empty if the length of the messages array is 1
+    # This handles the case where the agent is sending the first message in the conversation to greet the user
+    new_user_message = ""
+    if len(messages) > 1:
+        new_user_message = next(
+            msg for msg in reversed(messages) if msg["role"] == "user"
+        )
+        new_user_message = message_to_fixed_string_content(new_user_message)["content"]
 
     data = {
         "new_user_message": new_user_message,
@@ -129,10 +136,9 @@ def stream_and_update_chat(
     user_first_name: str,
     user_gender: str,
     audio_messages_enabled: bool,
-    audio_id: Optional[str] = None,
-    skip_final_processing: Optional[bool] = False,
+    audio_id: str,
+    skip_final_processing: bool,
 ):
-    user_message_timestamp = datetime.now()
     client = OpenAI(
         api_key=os.environ.get("OPENAI_API_KEY"),
     )
@@ -171,6 +177,8 @@ def stream_and_update_chat(
                     content = choice.delta.content
                     agent_response += content
 
+    user_message_timestamp = datetime.now()
+    agent_message_timestamp = user_message_timestamp - timedelta(seconds=1)
     # Run asynchronous operations in a separate thread, which is necessary to prevent the main
     # thread from getting blocked during synchronous tasks with high latency, like network requests.
     # This is important when streaming voice responses because the voice will pause in the middle of
@@ -192,6 +200,7 @@ def stream_and_update_chat(
                     user_message_timestamp=user_message_timestamp,
                     audio_messages_enabled=audio_messages_enabled,
                     audio_id=audio_id,
+                    agent_message_timestamp=agent_message_timestamp,
                 )
             ),
             daemon=True,
@@ -208,9 +217,8 @@ async def final_processing_coroutine(
     user_message_timestamp: datetime,
     audio_messages_enabled: bool,
     audio_id: Optional[str],
+    agent_message_timestamp: datetime,
 ) -> None:
-    agent_message_timestamp = datetime.now()
-
     await call_update_chat(
         messages=messages,
         agent_response=agent_response,
@@ -256,6 +264,7 @@ def stream_text(
         user_gender=user_gender,
         audio_messages_enabled=audio_messages_enabled,
         audio_id=audio_id,
+        skip_final_processing=False,
     )
     for chunk in stream:
         for choice in chunk.choices:
@@ -349,6 +358,7 @@ async def handle_chat_data(request: Request, user=Depends(authorize_user)):
                 user_id=user_id,
                 chat_type="type",
                 user_message_timestamp=user_message_timestamp,
+                agent_message_timestamp=datetime.timestamp(),
                 audio_messages_enabled=audio_messages_enabled,
                 audio_id=audio_id,
             )
@@ -435,15 +445,16 @@ async def handle_update_chat(request: UpdateChatRequest):
         audio_messages_enabled = request.audio_messages_enabled
 
         # Create new user chat message
-        await prisma.chatmessages.create(
-            data=types.ChatMessagesCreateInput(
-                chatId=chat_id,
-                role=enums.OpenAIRole.user,
-                content=new_user_message,
-                created=datetime.fromtimestamp(request.user_message_timestamp),
-                displayType="text",
+        if len(new_user_message) > 0:
+            await prisma.chatmessages.create(
+                data=types.ChatMessagesCreateInput(
+                    chatId=chat_id,
+                    role=enums.OpenAIRole.user,
+                    content=new_user_message,
+                    created=datetime.fromtimestamp(request.user_message_timestamp),
+                    displayType="text",
+                )
             )
-        )
 
         display_type = "audio" if audio_messages_enabled else "text"
 

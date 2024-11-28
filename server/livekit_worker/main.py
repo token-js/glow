@@ -21,12 +21,17 @@ from server.livekit_worker.llm import LLM
 import sys
 from pathlib import Path
 from fastapi import HTTPException, status
-from datetime import datetime
+from datetime import datetime, timedelta
 from sentry_sdk.integrations.asyncio import AsyncioIntegration
 from sentry_sdk.integrations.logging import LoggingIntegration
 from .voices import VoiceSettingMapping
 from server.logger.index import fetch_logger
 from dotenv import load_dotenv
+from livekit.plugins.openai.llm import _build_oai_context, build_oai_message
+from ..api.routes.chat import (
+    final_processing_coroutine,
+    message_to_fixed_string_content,
+)
 
 load_dotenv()
 
@@ -200,9 +205,46 @@ async def entrypoint(ctx: JobContext):
             ),
             api_key=os.environ.get("ELEVEN_LABS_API_KEY"),
         ),
-        min_endpointing_delay=1,
+        min_endpointing_delay=2,
         chat_ctx=initial_ctx,
     )
+
+    def handle_update_conversation(msg: llm.ChatMessage):
+        messages = _build_oai_context(assistant.chat_ctx, id(assistant))
+        new_agent_message = build_oai_message(msg, id(assistant))
+        new_agent_message: str = message_to_fixed_string_content(new_agent_message)[
+            "content"
+        ]
+
+        user_message_timestamp = datetime.now()
+        agent_message_timestamp = datetime.now() + timedelta(seconds=1)
+
+        # Use asyncio.create_task to schedule the coroutine
+        asyncio.create_task(
+            final_processing_coroutine(
+                messages=messages,
+                agent_response=new_agent_message.strip(),
+                chat_id=chat_id,
+                user_id=user_id,
+                chat_type="voice",
+                user_message_timestamp=user_message_timestamp,
+                agent_message_timestamp=agent_message_timestamp,
+                audio_messages_enabled=False,
+                audio_id=None,
+            )
+        )
+
+    # We update the database when the agent is interrupted and when the agent finishes talking
+    # We include the interruption because this event reliably only fires when the agent has actually
+    # Started talking, it does not fire if the agent has not started talking at all and the user simply
+    # paused long enough for the response process to begin.
+    @assistant.on("agent_speech_interrupted")
+    def on_agent_speech_interrupted(msg: llm.ChatMessage):
+        handle_update_conversation(msg)
+
+    @assistant.on("agent_speech_committed")
+    def on_agent_speech_committed(msg: llm.ChatMessage):
+        handle_update_conversation(msg)
 
     assistant.start(ctx.room, participant)
 

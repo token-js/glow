@@ -1,9 +1,16 @@
 import { updateUserSettings } from "@/components/screens/auth";
+import { AppContext } from "@/context";
 import { segmentTrackFinishedSignup } from "@/lib/analytics";
 import { signupStyles } from "@/lib/style";
 import { $Enums, Settings } from "@prisma/client";
 import { Session } from "@supabase/supabase-js";
-import React, { ReactElement, useEffect, useRef, useState } from "react";
+import React, {
+  ReactElement,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+} from "react";
 import { Animated, Easing, View } from "react-native";
 import { AINameSection } from "./aiName";
 import { GenderSection } from "./gender";
@@ -44,6 +51,7 @@ export const SignupFlow: React.FC<Props> = ({
   setShowSignupFlow,
   setSettings,
 }) => {
+  const { refetchToken } = useContext(AppContext);
   const [currentStepIndex, setCurrentStepIndex] = useState<number>(0);
   const [isTransitioning, setIsTransitioning] = useState<boolean>(false);
   const [topSection, setTopSection] = useState<"A" | "B">("A");
@@ -109,6 +117,7 @@ export const SignupFlow: React.FC<Props> = ({
       session.user.id
     );
     setSettings(settings);
+    await refetchToken();
 
     if (error === null) {
       Animated.parallel([
